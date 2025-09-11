@@ -85,9 +85,22 @@ update_index() {
   fi
 }
 
+update_users() {
+  # Build data/users.json as a sorted unique list of usernames across all days
+  if [ -d data ]; then
+    set +e
+    names=$(jq -r '(.friendData // .friends // .entries // .scores // [])[] | (.username // .name // .user.name // .playerName) | select(.)' data/*/leaderboard.json 2>/dev/null | sort -u)
+    set -e
+    if [ -n "$names" ]; then
+      printf '%s\n' "$names" | jq -R -s 'split("\n") | map(select(length>0))' > data/users.json
+      echo "users -> data/users.json ($(printf '%s\n' "$names" | grep -c . || true) users)"
+    fi
+  fi
+}
+
 case "${1:-both}" in
-  daily)   fetch_daily; update_index ;;
-  friends) fetch_friends; update_index ;;
-  both)    fetch_daily; fetch_friends; update_index ;;
+  daily)   fetch_daily; update_index; update_users ;;
+  friends) fetch_friends; update_index; update_users ;;
+  both)    fetch_daily; fetch_friends; update_index; update_users ;;
   *)       echo "usage: $0 [daily|friends|both]" >&2; exit 2 ;;
 esac

@@ -1,4 +1,4 @@
-import { BASE_DATA, $, fetchJSON, normalizeRows, colorForName } from '/src/guessrleaderbrd/utils.js';
+import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap } from '/src/guessrleaderbrd/utils.js';
 
 const MAX_USERS = 8; // Show top N lines
 
@@ -143,7 +143,8 @@ async function loadAllTime() {
   users.sort((a,b)=> b.total - a.total);
 
   // Build cumulative series per top users
-  const topUsers = users.slice(0, MAX_USERS).map(u => ({...u, color: colorForName(u.username)}));
+  const colorMap = buildColorMap(users.map(u => u.username));
+  const topUsers = users.slice(0, MAX_USERS).map(u => ({...u, color: colorMap.get(u.username)}));
   for (const u of topUsers) {
     const cum = [];
     let acc = 0;
@@ -159,4 +160,3 @@ async function loadAllTime() {
 }
 
 loadAllTime();
-

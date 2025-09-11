@@ -1,4 +1,4 @@
-import { BASE_DATA, $, fetchJSON, normalizeRows, colorForName, fmtDateRome, todayRomeStr } from '/src/guessrleaderbrd/utils.js';
+import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap, fmtDateRome, todayRomeStr } from '/src/guessrleaderbrd/utils.js';
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]; // Monday-first
@@ -81,16 +81,15 @@ async function renderMonth(allDates, y, m) {
     .filter(d => d.inMonth && set.has(d.iso))
     .map(d => fetchWinner(d.iso).then(w => ({ iso: d.iso, w })));
   const res = await Promise.all(tasks);
-  for (const {iso, w} of res) if (w) {
-    winners.set(iso, w);
-    if (!usersSeen.has(w.username)) usersSeen.set(w.username, colorForName(w.username));
-  }
+  for (const {iso, w} of res) if (w) winners.set(iso, w);
+
+  const colorMap = buildColorMap(Array.from(new Set(Array.from(winners.values()).map(w=>w.username))));
 
   for (const d of dates) {
     const el = document.createElement('div');
     el.className = 'day' + (d.inMonth ? '' : ' inactive');
     const w = winners.get(d.iso);
-    const color = w ? usersSeen.get(w.username) : null;
+    const color = w ? colorMap.get(w.username) : null;
     if (w && color) el.style.background = `linear-gradient(180deg, ${color} 0%, ${color} 60%, rgba(0,0,0,.2) 60%)`;
     el.innerHTML = `<div class=\"num\">${Number(d.iso.slice(-2))}</div>` + (w ? `<div class=\"meta\">${w.username}</div>` : '');
     if (d.inMonth && winners.has(d.iso)) {
@@ -105,7 +104,8 @@ async function renderMonth(allDates, y, m) {
 
   // Legend
   const legend = $("legend"); legend.innerHTML='';
-  for (const [name, color] of usersSeen) {
+  for (const name of Array.from(colorMap.keys())) {
+    const color = colorMap.get(name);
     const li = document.createElement('div');
     li.className = 'legend-item';
     li.innerHTML = `<span class=\"swatch\" style=\"background:${color}\"></span><span>${name}</span>`;
@@ -148,4 +148,3 @@ async function init() {
 }
 
 init();
-

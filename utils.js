@@ -54,3 +54,14 @@ export function getQueryParam(name) {
   const m = new URLSearchParams(location.search).get(name);
   return m && typeof m === "string" ? m : null;
 }
+
+// Build a stable, collision-free color map for a given user set.
+export function buildColorMap(names) {
+  const uniq = Array.from(new Set(names.filter(Boolean)));
+  uniq.sort((a,b)=>a.localeCompare(b));
+  const map = new Map();
+  for (let i=0; i<uniq.length; i++) {
+    map.set(uniq[i], PALETTE[i % PALETTE.length]);
+  }
+  return map;
+}
