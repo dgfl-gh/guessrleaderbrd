@@ -1,74 +1,81 @@
-#!/usr/bin/env bash
-# deps: bash, curl, jq, gzip, ImageMagick
-set -euo pipefail
-. "$(dirname "$0")/.env"
+#!/bin/sh
+# fetch.sh — KISS backend for Timeguessr
+# Requires: curl, jq, ImageMagick (magick or convert)
 
+set -eu
+cd "$(dirname "$0")"
+
+# Load auth/env
+if [ -f ./.env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+: "${COOKIE:?Set COOKIE=... in .env}"    # e.g. 'connect.sid=...; hasSeenAppAd=true'
+TZ="${TZ:-Europe/Rome}"
+
+TODAY="$(TZ="$TZ" date +%F)"
+OUT_DIR="data/$TODAY"
+IMG_DIR="$OUT_DIR/images"
 BASE="https://timeguessr.com"
 UA="Mozilla/5.0"
-DATA_DIR="${TG_DATA_DIR}"
-mkdir -p "$DATA_DIR/daily" "$DATA_DIR/friends"
 
-# require ImageMagick
-if command -v magick >/dev/null 2>&1; then IMCMD="magick"
-elif command -v convert >/dev/null 2>&1; then IMCMD="convert"
-else
-  echo "ImageMagick not installed." >&2
-  exit 1
-fi
+mkdir -p "$IMG_DIR"
 
-curl_json() {
-  curl -fsS --compressed \
-    -H "Accept: application/json" \
-    -H "User-Agent: $UA" \
-    -H "Cookie: $TG_COOKIE" \
-    "$1"
+have_im() {
+  if command -v magick >/dev/null 2>&1; then
+    echo magick
+  elif command -v convert >/dev/null 2>&1; then
+    echo convert
+  else
+    echo "ImageMagick not found (need 'magick' or 'convert')" >&2
+    exit 1
+  fi
 }
 
-pull_daily() {
-  local resp daily_no day_iso date_dir
-  resp="$(curl_json "$BASE/getDaily")"
-  daily_no="$(jq -r '[.[]|objects|.No][0]' <<<"$resp")"
-  [[ "$daily_no" != "null" ]] || { echo "daily_no missing"; return 2; }
+fetch_daily() {
+  tmp="$(mktemp)"; trap 'rm -f "$tmp"' INT TERM EXIT
+  curl -fsSL "$BASE/getDaily" \
+    -H "Cookie: $COOKIE" \
+    -H "Accept: application/json" \
+    -H "Referer: $BASE/dailyroundresults" \
+    -H "User-Agent: $UA" \
+    -o "$tmp"
 
-  day_iso="$(TZ="${TZ:-Europe/Rome}" date +%F)"
-  date_dir="$DATA_DIR/daily/$day_iso"
-  mkdir -p "$date_dir/images"
+  # keep only the 5 objects; ignore trailing username string
+  NO="$(jq -r 'map(select(type=="object")) | .[0].No' "$tmp")"
+  jq 'map(select(type=="object"))' "$tmp" > "$OUT_DIR/no-$NO.json"
 
-  # store JSON
-  if [[ ! -f "$date_dir/no-$daily_no.json.gz" ]]; then
-    printf "%s" "$resp" | gzip -c > "$date_dir/no-$daily_no.json.gz"
-  fi
-
-  # download + transcode images to jpg@80
-  mapfile -t urls < <(jq -r '.[]|objects|.URL' <<<"$resp")
-  for u in "${urls[@]}"; do
-    base="$(basename "$u")"
-    dst="$date_dir/images/${base%.*}.jpg"
-    [[ -f "$dst" ]] && continue
-    tmp="$date_dir/images/.dl.$$.$RANDOM"
-    curl -fsS --retry 3 -L -o "$tmp" "$u"
-    $IMCMD "$tmp" -auto-orient -strip -background white -alpha remove -alpha off \
-      -colorspace sRGB -sampling-factor 4:2:0 -quality 80 "$dst.tmp"
-    mv "$dst.tmp" "$dst"
-    rm -f "$tmp"
+  IM="$(have_im)"
+  # Download and convert every image to JPEG q80
+  jq -r 'map(select(type=="object") | .URL)[]' "$tmp" | while IFS= read -r url; do
+    bn="$(basename "$url")"
+    id="${bn%.*}"
+    dst="$IMG_DIR/$id.jpg"
+    timg="$(mktemp)"
+    curl -fsSL "$url" -o "$timg"
+    "$IM" "$timg" -auto-orient -strip -sampling-factor 4:2:0 -quality 80 "$dst"
+    rm -f "$timg"
   done
 
-  echo "daily $day_iso no-$daily_no ($((${#urls[@]})) images → jpg@80)"
+  rm -f "$tmp"; trap - INT TERM EXIT
+  echo "daily -> $OUT_DIR/no-$NO.json and images/"
 }
 
-pull_friends() {
-  local day_iso; day_iso="$(TZ="${TZ:-Europe/Rome}" date +%F)"
-  curl_json "$BASE/getFriendshipLeaderboard" \
-    | jq -c '{day:"'"$day_iso"'",friendData:.friendData}' \
-    | gzip -c > "$DATA_DIR/friends/$day_iso.json.gz"
-  echo "friends $day_iso saved"
+fetch_friends() {
+  curl -fsSL "$BASE/getFriendshipLeaderboard" \
+    -H "Cookie: $COOKIE" \
+    -H "Accept: application/json" \
+    -H "Referer: $BASE/finalscoredaily" \
+    -H "User-Agent: $UA" \
+    | jq '.' > "$OUT_DIR/leaderboard.json"
+  echo "friends -> $OUT_DIR/leaderboard.json"
 }
 
-mode="${1:-both}" # daily|friends|both
-case "$mode" in
-  daily)   pull_daily   ;;
-  friends) pull_friends ;;
-  both)    pull_daily; pull_friends ;;
-  *) echo "usage: $0 [daily|friends|both]"; exit 1 ;;
+case "${1:-both}" in
+  daily)   fetch_daily ;;
+  friends) fetch_friends ;;
+  both)    fetch_daily; fetch_friends ;;
+  *)       echo "usage: $0 [daily|friends|both]" >&2; exit 2 ;;
 esac
 
