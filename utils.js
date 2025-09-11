@@ -34,17 +34,23 @@ export function normalizeRows(data) {
 }
 
 // Stable color per user name using HSL
+// Distinct, accessible colors (6 users max). Tweak as desired.
+const PALETTE = [
+  '#e76f51', // persimmon
+  '#2a9d8f', // teal
+  '#e9c46a', // sand
+  '#f4a261', // orange
+  '#457b9d', // blue
+  '#a78bfa', // lavender
+];
+
 export function colorForName(name) {
   let h = 0;
   for (let i=0; i<name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  const hue = h % 360;
-  const sat = 65; // %
-  const light = 55; // %
-  return `hsl(${hue} ${sat}% ${light}%)`;
+  return PALETTE[h % PALETTE.length];
 }
 
 export function getQueryParam(name) {
   const m = new URLSearchParams(location.search).get(name);
   return m && typeof m === "string" ? m : null;
 }
-
