@@ -13,6 +13,10 @@
   header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
   h1 { font-size:20px; margin:0; letter-spacing:.2px; }
   .badge { display:inline-block; padding:2px 8px; border-radius:999px; background:#18202e; color:#bcd2ff; font-size:12px; border:1px solid #24304a; }
+  nav { margin-top:12px; display:flex; gap:8px; }
+  .tab { display:inline-flex; align-items:center; height:32px; padding:0 12px; border-radius:10px; border:1px solid var(--border); background:#10131b; color:#cbd4e1; text-decoration:none; font-weight:600; letter-spacing:.2px; }
+  .tab:hover { border-color:#2a2f3a }
+  .tab[aria-current="page"] { background:#18202e; color:#dbe7ff; border-color:#24304a; }
   .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:12px 0; }
   button { background:#1a1c23; color:var(--fg); border:1px solid var(--border); border-radius:10px; height:36px; padding:0 12px; font:inherit; cursor:pointer; }
   button:hover { border-color:#2a2f3a }
@@ -46,6 +50,11 @@
       <h1>Timeguessr — All‑Time Leaderboard</h1>
       <span id="meta-badge" class="badge">Loading…</span>
     </header>
+    <nav>
+      <a class="tab" href="/src/guessrleaderbrd/leaderboard.html">Leaderboard</a>
+      <a class="tab" aria-current="page" href="/src/guessrleaderbrd/alltime.html">All‑Time</a>
+      <a class="tab" href="/src/guessrleaderbrd/calendar.html">Calendar</a>
+    </nav>
 
     <main class="grid">
       <section class="card">
@@ -72,4 +81,3 @@
   </div>
 </body>
 </html>
-

@@ -73,11 +73,15 @@ fetch_friends() {
 }
 
 update_index() {
-  # Build data/index.json as an array of available YYYY-MM-DD directories
+  # Build data/index.json as an array of available YYYY-MM-DD directories (portable)
   if [ -d data ]; then
-    dates=$(find data -maxdepth 1 -type d -regex '.*/[0-9]{4}-[0-9]{2}-[0-9]{2}$' -exec basename {} \; | sort)
+    dates=$(find data -mindepth 1 -maxdepth 1 -type d -print \
+      | sed 's|.*/||' \
+      | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' \
+      | sort)
+    count=$(printf '%s\n' "$dates" | grep -c . || true)
     printf '%s\n' "$dates" | jq -R -s 'split("\n") | map(select(length>0))' > data/index.json
-    echo "index -> data/index.json ($(printf '%s\n' "$dates" | wc -l | tr -d ' ' ) dates)"
+    echo "index -> data/index.json ($count dates)"
   fi
 }
 
