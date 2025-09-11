@@ -72,10 +72,18 @@ fetch_friends() {
   echo "friends -> $OUT_DIR/leaderboard.json"
 }
 
+update_index() {
+  # Build data/index.json as an array of available YYYY-MM-DD directories
+  if [ -d data ]; then
+    dates=$(find data -maxdepth 1 -type d -regex '.*/[0-9]{4}-[0-9]{2}-[0-9]{2}$' -exec basename {} \; | sort)
+    printf '%s\n' "$dates" | jq -R -s 'split("\n") | map(select(length>0))' > data/index.json
+    echo "index -> data/index.json ($(printf '%s\n' "$dates" | wc -l | tr -d ' ' ) dates)"
+  fi
+}
+
 case "${1:-both}" in
-  daily)   fetch_daily ;;
-  friends) fetch_friends ;;
-  both)    fetch_daily; fetch_friends ;;
+  daily)   fetch_daily; update_index ;;
+  friends) fetch_friends; update_index ;;
+  both)    fetch_daily; fetch_friends; update_index ;;
   *)       echo "usage: $0 [daily|friends|both]" >&2; exit 2 ;;
 esac
-

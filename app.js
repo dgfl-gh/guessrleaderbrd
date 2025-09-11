@@ -38,7 +38,18 @@ function setStatus(msg, isErr=false) {
 }
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
 
+function getQueryParam(name) {
+  const m = new URLSearchParams(location.search).get(name);
+  return m && typeof m === "string" ? m : null;
+}
+
 const state = { today: todayRomeStr(), date: todayRomeStr() };
+// Support deep-linking via ?date=YYYY-MM-DD
+const qd = getQueryParam("date");
+if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) {
+  // Ensure not in the future relative to Rome TZ
+  state.date = qd > state.today ? state.today : qd;
+}
 
 function updateHeaderAndFooter() {
   $("date-badge").textContent = state.date;

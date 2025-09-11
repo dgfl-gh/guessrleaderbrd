@@ -3,21 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Timeguessr — Friends Leaderboard</title>
+  <title>Timeguessr — All‑Time Leaderboard</title>
   <link rel="icon" href="data:,">
   <style>
   :root { --bg:#0b0c10; --card:#111218; --muted:#9aa3b2; --fg:#e6e9ef; --acc:#6ea8fe; --border:#1b1e27; }
   * { box-sizing: border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial,"Apple Color Emoji","Segoe UI Emoji"; }
-  .container { max-width:960px; margin:0 auto; padding:24px 16px 48px; }
+  .container { max-width:1000px; margin:0 auto; padding:24px 16px 48px; }
   header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
   h1 { font-size:20px; margin:0; letter-spacing:.2px; }
   .badge { display:inline-block; padding:2px 8px; border-radius:999px; background:#18202e; color:#bcd2ff; font-size:12px; border:1px solid #24304a; }
   .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:12px 0; }
-  button, input[type="date"] { background:#1a1c23; color:var(--fg); border:1px solid var(--border); border-radius:10px; height:36px; padding:0 12px; font:inherit; cursor:pointer; }
+  button { background:#1a1c23; color:var(--fg); border:1px solid var(--border); border-radius:10px; height:36px; padding:0 12px; font:inherit; cursor:pointer; }
   button:hover { border-color:#2a2f3a }
-  button[disabled] { opacity:.5; cursor:not-allowed; }
   main .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; box-shadow:0 10px 18px rgba(0,0,0,.25); }
+  .grid { display:grid; grid-template-columns: 1fr; gap:16px; }
   .status { color:var(--muted); font-size:12px; margin-bottom:6px; }
   table { width:100%; border-collapse:collapse; }
   th, td { padding:10px 8px; border-bottom:1px solid var(--border); text-align:left; }
@@ -26,31 +26,38 @@
   .score { font-variant-numeric: tabular-nums; text-align:right; }
   .username { font-weight:600; }
   .empty { padding:24px; text-align:center; color:var(--muted); }
-  .err { color:#ffb4b4; }
+  .legend { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 0; }
+  .legend-item { display:flex; align-items:center; gap:8px; padding:4px 8px; border:1px solid var(--border); border-radius:10px; background:#0f1117; }
+  .swatch { width:14px; height:14px; border-radius:4px; border:1px solid rgba(255,255,255,.2); }
+  .chart-wrap { overflow:auto; padding:8px; background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)); border:1px solid var(--border); border-radius:12px; }
+  svg { width:100%; height:320px; display:block; }
+  .axis text { fill: var(--muted); font-size: 10px; }
+  .axis .tick line { stroke: #2a2f3a; }
+  .grid-lines line { stroke: #1d2130; }
   footer { margin-top:12px; color:var(--muted); font-size:12px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
-  .kbd { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; background:#0f1117; border:1px solid #1d2130; border-bottom-color:#171b28; padding:1px 6px; border-radius:6px; font-size:12px; color:#c6cbd3; }
+  .link { color:#bcd2ff; text-decoration: none; }
+  .link:hover { text-decoration: underline; }
   </style>
+  <script type="module" src="/src/guessrleaderbrd/alltime.js"></script>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Timeguessr — Friends Leaderboard</h1>
-      <span id="date-badge" class="badge">—</span>
+      <h1>Timeguessr — All‑Time Leaderboard</h1>
+      <span id="meta-badge" class="badge">Loading…</span>
     </header>
 
-    <section class="controls">
-      <button id="prev">◀ Prev</button>
-      <input id="date" type="date" />
-      <button id="next">Next ▶</button>
-      <button id="reload">Reload</button>
-    </section>
-
-    <main>
+    <main class="grid">
       <section class="card">
-        <div id="status" class="status">Loading…</div>
-        <table aria-label="Friends leaderboard">
+        <div id="status" class="status">Loading totals…</div>
+        <div class="chart-wrap"><svg id="chart" viewBox="0 0 1000 320" preserveAspectRatio="none" aria-label="Cumulative scores over time"></svg></div>
+        <div id="legend" class="legend"></div>
+      </section>
+
+      <section class="card">
+        <table aria-label="All-time leaderboard">
           <thead>
-            <tr><th class="rank">#</th><th>User</th><th class="score">Score</th></tr>
+            <tr><th class="rank">#</th><th>User</th><th class="score">Total</th></tr>
           </thead>
           <tbody id="tbody"></tbody>
         </table>
@@ -59,11 +66,10 @@
     </main>
 
     <footer>
-      <div>File: <span id="path" class="kbd">—</span></div>
-      <div>Tip: use <span class="kbd">←</span>/<span class="kbd">→</span> to change day.</div>
+      <div>Daily view: <a class="link" href="/src/guessrleaderbrd/leaderboard.html">Leaderboard</a></div>
+      <div>Browse winners by month: <a class="link" href="/src/guessrleaderbrd/calendar.html">Winner Calendar</a></div>
     </footer>
   </div>
-
-  <script type="module" src="src/guessrleaderbrd/app.js"></script>
 </body>
 </html>
+
