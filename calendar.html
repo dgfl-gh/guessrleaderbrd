@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Timeguessr — Winner Calendar</title>
+  <title>EMN TimeGuessr Leaderboard</title>
   <link rel="icon" href="data:,">
   <style>
   :root { --bg:#0b0c10; --card:#111218; --muted:#9aa3b2; --fg:#e6e9ef; --acc:#6ea8fe; --border:#1b1e27; }
@@ -41,15 +41,7 @@
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>Timeguessr — Winner Calendar</h1>
-      <span id="meta-badge" class="badge">Loading…</span>
-    </header>
-    <nav>
-      <a class="tab" href="/src/guessrleaderbrd/leaderboard.html">Leaderboard</a>
-      <a class="tab" href="/src/guessrleaderbrd/alltime.html">All‑Time</a>
-      <a class="tab" aria-current="page" href="/src/guessrleaderbrd/calendar.html">Calendar</a>
-    </nav>
+    <div id="site-header"></div>
 
     <section class="controls">
       <button id="prev">◀ Prev</button>
@@ -67,9 +59,13 @@
     </main>
 
     <footer>
-      <div>Open day: click a cell or press <span class="kbd">Enter</span></div>
-      <div>Daily view: <a class="link" href="/src/guessrleaderbrd/leaderboard.html">Leaderboard</a></div>
+      <div>Open day: click a cell</div>
+      <div>Daily view: <a class="link" href="/src/guessrleaderbrd/leaderboard.html">Daily</a></div>
     </footer>
   </div>
+  <script type="module">
+    import { mountHeader } from '/src/guessrleaderbrd/header.js';
+    mountHeader('calendar');
+  </script>
 </body>
 </html>

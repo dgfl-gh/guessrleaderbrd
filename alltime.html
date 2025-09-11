@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Timeguessr — All‑Time Leaderboard</title>
+  <title>EMN TimeGuessr Leaderboard</title>
   <link rel="icon" href="data:,">
   <style>
   :root { --bg:#0b0c10; --card:#111218; --muted:#9aa3b2; --fg:#e6e9ef; --acc:#6ea8fe; --border:#1b1e27; }
@@ -46,15 +46,7 @@
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>Timeguessr — All‑Time Leaderboard</h1>
-      <span id="meta-badge" class="badge">Loading…</span>
-    </header>
-    <nav>
-      <a class="tab" href="/src/guessrleaderbrd/leaderboard.html">Daily</a>
-      <a class="tab" aria-current="page" href="/src/guessrleaderbrd/alltime.html">All‑Time</a>
-      <a class="tab" href="/src/guessrleaderbrd/calendar.html">Calendar</a>
-    </nav>
+    <div id="site-header"></div>
 
     <main class="grid">
       <section class="card">
@@ -75,9 +67,13 @@
     </main>
 
     <footer>
-      <div>Daily view: <a class="link" href="/src/guessrleaderbrd/leaderboard.html">Leaderboard</a></div>
+      <div>Daily view: <a class="link" href="/src/guessrleaderbrd/leaderboard.html">Daily</a></div>
       <div>Browse winners by month: <a class="link" href="/src/guessrleaderbrd/calendar.html">Winner Calendar</a></div>
     </footer>
   </div>
+  <script type="module">
+    import { mountHeader } from '/src/guessrleaderbrd/header.js';
+    mountHeader('alltime');
+  </script>
 </body>
 </html>

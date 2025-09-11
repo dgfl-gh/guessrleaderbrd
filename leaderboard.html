@@ -37,15 +37,7 @@
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>EMN TimeGuessr Leaderboard</h1>
-      <span id="date-badge" class="badge">—</span>
-    </header>
-    <nav>
-      <a class="tab" aria-current="page" href="/src/guessrleaderbrd/leaderboard.html">Leaderboard</a>
-      <a class="tab" href="/src/guessrleaderbrd/alltime.html">All‑Time</a>
-      <a class="tab" href="/src/guessrleaderbrd/calendar.html">Calendar</a>
-    </nav>
+    <div id="site-header"></div>
 
     <section class="controls">
       <button id="prev">◀ Prev</button>
@@ -72,6 +64,10 @@
     </footer>
   </div>
 
+  <script type="module">
+    import { mountHeader } from '/src/guessrleaderbrd/header.js';
+    mountHeader('daily');
+  </script>
   <script type="module" src="/src/guessrleaderbrd/app.js"></script>
 </body>
 </html>

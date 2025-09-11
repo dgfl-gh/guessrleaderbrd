@@ -52,11 +52,12 @@ if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) {
 }
 
 function updateHeaderAndFooter() {
-  $("date-badge").textContent = state.date;
+  $("meta-badge").textContent = state.date;
   $("date").value = state.date;
   $("date").max = state.today;
   $("next").disabled = state.date >= state.today;
-  $("path").textContent = `${BASE}/${state.date}/leaderboard.json`;
+  const p = $("path");
+  if (p) p.textContent = `${BASE}/${state.date}/leaderboard.json`;
 }
 
 async function load(bust=false) {
@@ -107,10 +108,8 @@ $("date").addEventListener("change", () => { state.date = $("date").value || sta
 window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
   if (e.key === "ArrowRight") { e.preventDefault(); go(+1); }
-  if (e.key.toLowerCase() === "r") { e.preventDefault(); load(true); }
 });
 
 // init
 updateHeaderAndFooter();
 load();
-
