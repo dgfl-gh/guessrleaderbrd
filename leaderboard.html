@@ -34,7 +34,7 @@
   /* Map styles */
   .map-card { margin-top:12px; }
   .map-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; color:var(--muted); font-size:12px; }
-  .map-container { position:relative; width:100%; aspect-ratio: 2 / 1; background:#0f1117; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .map-container { position:relative; width:100%; aspect-ratio: 2 / 1; background:#0f1117; border:1px solid var(--border); border-radius:12px; overflow:visible; }
   .map-container::before { content:""; position:absolute; inset:0; background-image: radial-gradient(transparent 0, transparent 98%, rgba(255,255,255,0.04) 100%), linear-gradient(0deg, rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px); background-size: 100% 100%, 20px 20px, 20px 20px; background-position: center; }
   .pin { position:absolute; transform: translate(-50%, -100%); cursor:pointer; }
   .pin-dot { width:10px; height:10px; background:#ff6b6b; border:2px solid #fff; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,.5); }
