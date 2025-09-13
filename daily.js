@@ -65,21 +65,23 @@ function updateHeaderAndFooter() {
   if (p) p.textContent = `${BASE}/${state.date}/leaderboard.json`;
 }
 
-function fmtPct(n) { return `${n.toFixed(4)}%`; }
-function llToPct(lat, lng) {
-  // Equirectangular projection to percentage coords within 2:1 map
-  const xPct = (lng + 180) / 360 * 100;
-  const yPct = (90 - lat) / 180 * 100;
-  return { xPct, yPct };
+let leafletMap = null;
+let markerLayer = null;
+
+function localImageFromURL(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    const bn = u.pathname.split('/').pop() || '';
+    const id = bn.replace(/\.[a-zA-Z0-9]+$/, '');
+    return `${BASE}/${state.date}/images/${id}.jpg`;
+  } catch { return null; }
 }
 
 async function tryRenderMap() {
   const isPast = state.date < state.today;
   const mapCard = document.getElementById('map-card');
-  const map = document.getElementById('map');
+  const mapEl = document.getElementById('map');
   const mapStatus = document.getElementById('map-status');
-  // Clear previous
-  map.innerHTML = '';
   mapStatus.textContent = '';
   if (!isPast) { mapCard.hidden = true; return; }
 
@@ -90,82 +92,43 @@ async function tryRenderMap() {
     mapCard.hidden = false;
     mapStatus.textContent = `${photos.length} photos`;
 
-    // Add pins
+    // Init Leaflet map once
+    if (!leafletMap) {
+      leafletMap = L.map(mapEl, { worldCopyJump: true });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(leafletMap);
+    }
+
+    // Reset marker layer
+    if (markerLayer) leafletMap.removeLayer(markerLayer);
+    markerLayer = L.featureGroup();
+
+    const pts = [];
     for (const p of photos) {
       const lat = p?.Location?.lat, lng = p?.Location?.lng;
       if (typeof lat !== 'number' || typeof lng !== 'number') continue;
-      const { xPct, yPct } = llToPct(lat, lng);
-      const pin = document.createElement('div');
-      pin.className = 'pin';
-      pin.style.left = fmtPct(xPct);
-      pin.style.top = fmtPct(yPct);
-      pin.title = `${p.Country || ''} ${p.Year ? `(${p.Year})` : ''}`.trim();
-      const dot = document.createElement('div');
-      dot.className = 'pin-dot';
-      const label = document.createElement('div');
-      label.className = 'pin-label';
-      label.textContent = p.Year || '';
-      pin.appendChild(dot); pin.appendChild(label);
-
-      pin.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openPhotoPopup(map, pin, p);
-      });
-      map.appendChild(pin);
+      const img = localImageFromURL(p.URL);
+      const html = `
+        ${img ? `<img alt="" src="${img}" style="display:block;max-width:320px;width:100%;height:auto;border-radius:8px;margin-bottom:6px;">` : ''}
+        <div style="font-weight:700;margin-bottom:4px;">${(p.Country || '')}${p.Year ? ` · ${p.Year}` : ''}</div>
+        <div style="color:#9aa3b2;font-size:12px;margin-bottom:6px;">${lat.toFixed(4)}, ${lng.toFixed(4)}</div>
+        <div>${p.Description || ''}</div>`;
+      const m = L.marker([lat, lng]).bindPopup(html, { maxWidth: 360 });
+      markerLayer.addLayer(m);
+      pts.push([lat, lng]);
     }
 
-    // Close popup on outside click
-    map.addEventListener('click', () => closePopup(map));
-    document.addEventListener('keydown', onEscClose);
+    markerLayer.addTo(leafletMap);
+    if (pts.length === 1) {
+      leafletMap.setView(pts[0], 5);
+    } else if (pts.length > 1) {
+      leafletMap.fitBounds(markerLayer.getBounds(), { padding: [30, 30] });
+    }
   } catch (e) {
     mapCard.hidden = true;
   }
-}
-
-function onEscClose(e) { if (e.key === 'Escape') closePopup(document.getElementById('map')); }
-function closePopup(map) {
-  const pop = map.querySelector('.map-popup');
-  if (pop) pop.remove();
-}
-
-function openPhotoPopup(map, pinEl, photo) {
-  closePopup(map);
-  const rect = map.getBoundingClientRect();
-  const pinRect = pinEl.getBoundingClientRect();
-  const relX = pinRect.left - rect.left;
-  const relY = pinRect.top - rect.top;
-
-  // Build local image path from URL id
-  let localImg = null;
-  try {
-    const u = new URL(photo.URL);
-    const bn = u.pathname.split('/').pop() || '';
-    const id = bn.replace(/\.[a-zA-Z0-9]+$/, '');
-    localImg = `${BASE}/${state.date}/images/${id}.jpg`;
-  } catch { /* ignore */ }
-
-  const pop = document.createElement('div');
-  pop.className = 'map-popup';
-  pop.innerHTML = `
-    <button class="pop-close" aria-label="Close">×</button>
-    ${localImg ? `<img alt="" src="${localImg}">` : ''}
-    <div class="pop-body">
-      <div class="pop-title">${(photo.Country || '')}${photo.Year ? ` · ${photo.Year}` : ''}</div>
-      <div class="pop-meta">${photo.Location ? `${photo.Location.lat.toFixed(4)}, ${photo.Location.lng.toFixed(4)}` : ''}</div>
-      <div class="pop-desc">${(photo.Description || '')}</div>
-    </div>
-  `;
-  map.appendChild(pop);
-  const pw = pop.offsetWidth || 320;
-  const ph = pop.offsetHeight || 240;
-  let left = relX + 8; let top = relY + 8;
-  if (left + pw > rect.width - 8) left = relX - pw - 8;
-  if (top + ph > rect.height - 8) top = relY - ph - 8;
-  left = Math.max(8, Math.min(left, rect.width - pw - 8));
-  top = Math.max(8, Math.min(top, rect.height - ph - 8));
-  pop.style.left = `${left}px`;
-  pop.style.top = `${top}px`;
-  pop.querySelector('.pop-close').addEventListener('click', (e) => { e.stopPropagation(); closePopup(map); }, { once:true });
 }
 
 async function load(bust=false) {

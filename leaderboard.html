@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>EMN TimeGuessr Leaderboard</title>
   <link rel="icon" href="data:,">
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
   <style>
   :root { --bg:#0b0c10; --card:#111218; --muted:#9aa3b2; --fg:#e6e9ef; --acc:#6ea8fe; --border:#1b1e27; }
   * { box-sizing: border-box; }
@@ -34,17 +41,13 @@
   /* Map styles */
   .map-card { margin-top:12px; }
   .map-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; color:var(--muted); font-size:12px; }
-  .map-container { position:relative; width:100%; aspect-ratio: 2 / 1; background:#0f1117; border:1px solid var(--border); border-radius:12px; overflow:visible; }
-  .map-container::before { content:""; position:absolute; inset:0; background-image: radial-gradient(transparent 0, transparent 98%, rgba(255,255,255,0.04) 100%), linear-gradient(0deg, rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px); background-size: 100% 100%, 20px 20px, 20px 20px; background-position: center; }
-  .pin { position:absolute; transform: translate(-50%, -100%); cursor:pointer; }
-  .pin-dot { width:10px; height:10px; background:#ff6b6b; border:2px solid #fff; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,.5); }
-  .pin-label { position:absolute; top:-18px; left:50%; transform:translateX(-50%); background:#18202e; border:1px solid #24304a; color:#bcd2ff; font-size:10px; padding:1px 4px; border-radius:6px; white-space:nowrap; pointer-events:none; }
-  .map-popup { position:absolute; max-width:min(420px, 80%); background:var(--card); color:var(--fg); border:1px solid var(--border); border-radius:12px; box-shadow:0 14px 28px rgba(0,0,0,.5); overflow:hidden; z-index:5; }
-  .map-popup img { display:block; width:100%; height:auto; background:#000; }
-  .map-popup .pop-body { padding:10px; font-size:13px; }
-  .map-popup .pop-title { font-weight:700; margin-bottom:6px; }
-  .map-popup .pop-meta { color:var(--muted); font-size:12px; margin-bottom:6px; }
-  .map-popup .pop-close { position:absolute; top:6px; right:8px; background:transparent; border:none; color:#cbd4e1; cursor:pointer; font-size:18px; line-height:1; }
+  .map-container { position:relative; width:100%; height:420px; background:#0f1117; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  /* Leaflet popup tweaks for theme */
+  .leaflet-container { background:#0b0c10; color:var(--fg); font:inherit; }
+  .leaflet-popup-content-wrapper { background:var(--card); color:var(--fg); border:1px solid var(--border); border-radius:12px; }
+  .leaflet-popup-content { margin:10px 12px; }
+  .leaflet-popup-tip { background:var(--card); }
+  .leaflet-control-attribution { background:rgba(0,0,0,.35); color:#cbd4e1; }
   footer { margin-top:12px; color:var(--muted); font-size:12px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
   .kbd { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; background:#0f1117; border:1px solid #1d2130; border-bottom-color:#171b28; padding:1px 6px; border-radius:6px; font-size:12px; color:#c6cbd3; }
   </style>
@@ -88,6 +91,12 @@
     import { mountHeader } from '/src/guessrleaderbrd/header.js';
     mountHeader('daily');
   </script>
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
   <script type="module" src="/src/guessrleaderbrd/daily.js"></script>
 </body>
 </html>
