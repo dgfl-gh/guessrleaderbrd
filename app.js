@@ -65,6 +65,114 @@ function updateHeaderAndFooter() {
   if (p) p.textContent = `${BASE}/${state.date}/leaderboard.json`;
 }
 
+function fmtPct(n) { return `${n.toFixed(4)}%`; }
+function llToPct(lat, lng) {
+  // Equirectangular projection to percentage coords within 2:1 map
+  const xPct = (lng + 180) / 360 * 100;
+  const yPct = (90 - lat) / 180 * 100;
+  return { xPct, yPct };
+}
+
+async function tryRenderMap(dataForDay) {
+  const isPast = state.date < state.today;
+  const mapCard = document.getElementById('map-card');
+  const map = document.getElementById('map');
+  const mapStatus = document.getElementById('map-status');
+  // Clear previous
+  map.innerHTML = '';
+  mapStatus.textContent = '';
+  if (!isPast) { mapCard.hidden = true; return; }
+
+  try {
+    // Prefer embedded photos from leaderboard.json to avoid extra requests/files
+    let photos = (dataForDay && (dataForDay.photos || dataForDay.friendData?.photos || dataForDay.friends?.photos)) || null;
+    if (!Array.isArray(photos)) {
+      // Optional fallback: if backend provided just the daily number, fetch no-<No>.json
+      const no = dataForDay && (dataForDay.no || dataForDay.No);
+      if (no) photos = await fetchJSON(`${BASE}/${state.date}/no-${no}.json`);
+    }
+    if (!Array.isArray(photos) || photos.length === 0) { mapCard.hidden = true; return; }
+    mapCard.hidden = false;
+    mapStatus.textContent = `${photos.length} photos`;
+
+    // Add pins
+    for (const p of photos) {
+      const lat = p?.Location?.lat, lng = p?.Location?.lng;
+      if (typeof lat !== 'number' || typeof lng !== 'number') continue;
+      const { xPct, yPct } = llToPct(lat, lng);
+      const pin = document.createElement('div');
+      pin.className = 'pin';
+      pin.style.left = fmtPct(xPct);
+      pin.style.top = fmtPct(yPct);
+      pin.title = `${p.Country || ''} ${p.Year ? `(${p.Year})` : ''}`.trim();
+      const dot = document.createElement('div');
+      dot.className = 'pin-dot';
+      const label = document.createElement('div');
+      label.className = 'pin-label';
+      label.textContent = p.Year || '';
+      pin.appendChild(dot); pin.appendChild(label);
+
+      pin.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openPhotoPopup(map, pin, p);
+      });
+      map.appendChild(pin);
+    }
+
+    // Close popup on outside click
+    map.addEventListener('click', () => closePopup(map));
+    document.addEventListener('keydown', onEscClose);
+  } catch (e) {
+    mapCard.hidden = true;
+  }
+}
+
+function onEscClose(e) { if (e.key === 'Escape') closePopup(document.getElementById('map')); }
+function closePopup(map) {
+  const pop = map.querySelector('.map-popup');
+  if (pop) pop.remove();
+}
+
+function openPhotoPopup(map, pinEl, photo) {
+  closePopup(map);
+  const rect = map.getBoundingClientRect();
+  const pinRect = pinEl.getBoundingClientRect();
+  const relX = pinRect.left - rect.left;
+  const relY = pinRect.top - rect.top;
+
+  // Build local image path from URL id
+  let localImg = null;
+  try {
+    const u = new URL(photo.URL);
+    const bn = u.pathname.split('/').pop() || '';
+    const id = bn.replace(/\.[a-zA-Z0-9]+$/, '');
+    localImg = `${BASE}/${state.date}/images/${id}.jpg`;
+  } catch { /* ignore */ }
+
+  const pop = document.createElement('div');
+  pop.className = 'map-popup';
+  pop.innerHTML = `
+    <button class="pop-close" aria-label="Close">×</button>
+    ${localImg ? `<img alt="" src="${localImg}">` : ''}
+    <div class="pop-body">
+      <div class="pop-title">${(photo.Country || '')}${photo.Year ? ` · ${photo.Year}` : ''}</div>
+      <div class="pop-meta">${photo.Location ? `${photo.Location.lat.toFixed(4)}, ${photo.Location.lng.toFixed(4)}` : ''}</div>
+      <div class="pop-desc">${(photo.Description || '')}</div>
+    </div>
+  `;
+  map.appendChild(pop);
+  const pw = pop.offsetWidth || 320;
+  const ph = pop.offsetHeight || 240;
+  let left = relX + 8; let top = relY + 8;
+  if (left + pw > rect.width - 8) left = relX - pw - 8;
+  if (top + ph > rect.height - 8) top = relY - ph - 8;
+  left = Math.max(8, Math.min(left, rect.width - pw - 8));
+  top = Math.max(8, Math.min(top, rect.height - ph - 8));
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+  pop.querySelector('.pop-close').addEventListener('click', (e) => { e.stopPropagation(); closePopup(map); }, { once:true });
+}
+
 async function load(bust=false) {
   setStatus("Loading…");
   updateHeaderAndFooter();
@@ -92,10 +200,14 @@ async function load(bust=false) {
     }
     tbody.appendChild(frag);
     setStatus(`Loaded ${rows.length} entries`);
+    // Render map for past days (uses embedded data when available)
+    await tryRenderMap(data);
   } catch (e) {
     $("tbody").innerHTML = "";
     $("empty").hidden = false;
     setStatus(`Error loading ${url}: ${e.message}`, true);
+    // Hide map on error
+    const mapCard = document.getElementById('map-card'); if (mapCard) mapCard.hidden = true;
   }
 }
 
