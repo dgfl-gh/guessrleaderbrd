@@ -15,7 +15,7 @@ export function mountHeader(active) {
       <span id="meta-badge" class="badge">—</span>
     </header>
     <nav>
-      <a class="tab" ${active==='daily' ? 'aria-current="page"' : ''} href="/src/guessrleaderbrd/leaderboard.html">Daily</a>
+      <a class="tab" ${active==='daily' ? 'aria-current="page"' : ''} href="/src/guessrleaderbrd/daily.html">Daily</a>
       <a class="tab" ${active==='alltime' ? 'aria-current="page"' : ''} href="/src/guessrleaderbrd/alltime.html">All‑Time</a>
       <a class="tab" ${active==='calendar' ? 'aria-current="page"' : ''} href="/src/guessrleaderbrd/calendar.html">Calendar</a>
     </nav>
@@ -23,4 +23,3 @@ export function mountHeader(active) {
 
   if (!isAttached) container.prepend(host);
 }
-

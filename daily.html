@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>EMN TimeGuessr Leaderboard</title>
+        <link rel="icon" href="data:," />
+        <!-- Leaflet CSS -->
+        <link
+            rel="stylesheet"
+            href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+            integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+            crossorigin=""
+        />
+        <style>
+            :root {
+                --bg: #0b0c10;
+                --card: #111218;
+                --muted: #9aa3b2;
+                --fg: #e6e9ef;
+                --acc: #6ea8fe;
+                --border: #1b1e27;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                background: var(--bg);
+                color: var(--fg);
+                font:
+                    14px/1.45 system-ui,
+                    -apple-system,
+                    Segoe UI,
+                    Roboto,
+                    Ubuntu,
+                    Cantarell,
+                    Noto Sans,
+                    Arial,
+                    "Apple Color Emoji",
+                    "Segoe UI Emoji";
+            }
+            .container {
+                max-width: 960px;
+                margin: 0 auto;
+                padding: 24px 16px 48px;
+            }
+            header {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+                align-items: center;
+                justify-content: space-between;
+            }
+            h1 {
+                font-size: 20px;
+                margin: 0;
+                letter-spacing: 0.2px;
+            }
+            .badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 999px;
+                background: #18202e;
+                color: #bcd2ff;
+                font-size: 12px;
+                border: 1px solid #24304a;
+            }
+            nav {
+                margin-top: 12px;
+                display: flex;
+                gap: 8px;
+            }
+            .tab {
+                display: inline-flex;
+                align-items: center;
+                height: 32px;
+                padding: 0 12px;
+                border-radius: 10px;
+                border: 1px solid var(--border);
+                background: #10131b;
+                color: #cbd4e1;
+                text-decoration: none;
+                font-weight: 600;
+                letter-spacing: 0.2px;
+            }
+            .tab:hover {
+                border-color: #2a2f3a;
+            }
+            .tab[aria-current="page"] {
+                background: #18202e;
+                color: #dbe7ff;
+                border-color: #24304a;
+            }
+            .controls {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                flex-wrap: wrap;
+                margin: 12px 0;
+            }
+            button,
+            input[type="date"] {
+                background: #1a1c23;
+                color: var(--fg);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                height: 36px;
+                padding: 0 12px;
+                font: inherit;
+                cursor: pointer;
+            }
+            button:hover {
+                border-color: #2a2f3a;
+            }
+            button[disabled] {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            main .card {
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-radius: 14px;
+                padding: 14px;
+                box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
+            }
+            .status {
+                color: var(--muted);
+                font-size: 12px;
+                margin-bottom: 6px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            th,
+            td {
+                padding: 10px 8px;
+                border-bottom: 1px solid var(--border);
+                text-align: left;
+            }
+            th {
+                color: var(--muted);
+                font-weight: 600;
+                font-size: 12px;
+                letter-spacing: 0.3px;
+                text-transform: uppercase;
+            }
+            .rank {
+                width: 56px;
+                text-align: right;
+                color: var(--muted);
+            }
+            .score {
+                font-variant-numeric: tabular-nums;
+                text-align: right;
+            }
+            .username {
+                font-weight: 600;
+            }
+            .empty {
+                padding: 24px;
+                text-align: center;
+                color: var(--muted);
+            }
+            .err {
+                color: #ffb4b4;
+            }
+            /* Map styles */
+            .map-card {
+                margin-top: 12px;
+            }
+            .map-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 8px;
+                color: var(--muted);
+                font-size: 12px;
+            }
+            .map-container {
+                position: relative;
+                width: 100%;
+                height: 420px;
+                background: #0f1117;
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                overflow: hidden;
+            }
+            /* Leaflet popup tweaks for theme */
+            .leaflet-container {
+                background: #0b0c10;
+                color: var(--fg);
+                font: inherit;
+            }
+            .leaflet-popup-content-wrapper {
+                background: var(--card);
+                color: var(--fg);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+            }
+            .leaflet-popup-content {
+                margin: 10px 12px;
+            }
+            .leaflet-popup-tip {
+                background: var(--card);
+            }
+            .leaflet-control-attribution {
+                background: rgba(0, 0, 0, 0.35);
+                color: #cbd4e1;
+            }
+            footer {
+                margin-top: 12px;
+                color: var(--muted);
+                font-size: 12px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+            .kbd {
+                font-family:
+                    ui-monospace, SFMono-Regular, Menlo, Consolas,
+                    "Liberation Mono", monospace;
+                background: #0f1117;
+                border: 1px solid #1d2130;
+                border-bottom-color: #171b28;
+                padding: 1px 6px;
+                border-radius: 6px;
+                font-size: 12px;
+                color: #c6cbd3;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div id="site-header"></div>
+
+            <section class="controls">
+                <button id="prev">◀ Prev</button>
+                <input id="date" type="date" />
+                <button id="next">Next ▶</button>
+                <button id="reload">Reload</button>
+            </section>
+
+            <main>
+                <section class="card">
+                    <div id="status" class="status">Loading…</div>
+                    <table aria-label="Friends leaderboard">
+                        <thead>
+                            <tr>
+                                <th class="rank">#</th>
+                                <th>User</th>
+                                <th class="score">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody"></tbody>
+                    </table>
+                    <div id="empty" class="empty" hidden>No data.</div>
+                </section>
+
+                <footer>
+                    <div>
+                        Tip: use <span class="kbd">←</span>/<span class="kbd"
+                            >→</span
+                        >
+                        to change day.
+                    </div>
+                </footer>
+
+                <!-- World map of daily photos (only for past days) -->
+                <section id="map-card" class="card map-card" hidden>
+                    <div class="map-header">
+                        <span>Photo locations</span
+                        ><span id="map-status"></span>
+                    </div>
+                    <div id="map" class="map-container"></div>
+                </section>
+            </main>
+        </div>
+
+        <script type="module">
+            import { mountHeader } from "/src/guessrleaderbrd/header.js";
+            mountHeader("daily");
+        </script>
+        <!-- Leaflet JS -->
+        <script
+            src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""
+        ></script>
+        <script type="module" src="/src/guessrleaderbrd/daily.js"></script>
+    </body>
+</html>
