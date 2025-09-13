@@ -55,8 +55,7 @@ fetch_daily() {
     -o "$tmp"
 
   # keep only the 5 objects; ignore trailing username string
-  NO="$(jq -r 'map(select(type=="object")) | .[0].No' "$tmp")"
-  jq 'map(select(type=="object"))' "$tmp" > "$OUT_DIR/no-$NO.json"
+  jq 'map(select(type=="object"))' "$tmp" > "$OUT_DIR/photos.json"
 
   IM="$(have_im)"
   # Download and convert every image to JPEG q80
@@ -71,7 +70,7 @@ fetch_daily() {
   done
 
   rm -f "$tmp"; trap - INT TERM EXIT
-  echo "daily -> $OUT_DIR/no-$NO.json and images/"
+  echo "daily -> $OUT_DIR/photos.json and images/"
 }
 
 fetch_friends() {

@@ -73,7 +73,7 @@ function llToPct(lat, lng) {
   return { xPct, yPct };
 }
 
-async function tryRenderMap(dataForDay) {
+async function tryRenderMap() {
   const isPast = state.date < state.today;
   const mapCard = document.getElementById('map-card');
   const map = document.getElementById('map');
@@ -84,13 +84,8 @@ async function tryRenderMap(dataForDay) {
   if (!isPast) { mapCard.hidden = true; return; }
 
   try {
-    // Prefer embedded photos from leaderboard.json to avoid extra requests/files
-    let photos = (dataForDay && (dataForDay.photos || dataForDay.friendData?.photos || dataForDay.friends?.photos)) || null;
-    if (!Array.isArray(photos)) {
-      // Optional fallback: if backend provided just the daily number, fetch no-<No>.json
-      const no = dataForDay && (dataForDay.no || dataForDay.No);
-      if (no) photos = await fetchJSON(`${BASE}/${state.date}/no-${no}.json`);
-    }
+    // Load stable photos.json for this day
+    const photos = await fetchJSON(`${BASE}/${state.date}/photos.json`);
     if (!Array.isArray(photos) || photos.length === 0) { mapCard.hidden = true; return; }
     mapCard.hidden = false;
     mapStatus.textContent = `${photos.length} photos`;
@@ -200,8 +195,8 @@ async function load(bust=false) {
     }
     tbody.appendChild(frag);
     setStatus(`Loaded ${rows.length} entries`);
-    // Render map for past days (uses embedded data when available)
-    await tryRenderMap(data);
+    // Render map for past days
+    await tryRenderMap();
   } catch (e) {
     $("tbody").innerHTML = "";
     $("empty").hidden = false;
