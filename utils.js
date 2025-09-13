@@ -9,7 +9,12 @@ export function fmtDateRome(d) {
   const parts = Object.fromEntries(dt.formatToParts(d).map(p => [p.type, p.value]));
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
-export function todayRomeStr() { return fmtDateRome(new Date()); }
+// Game day cutoff is 09:00 in Rome; before that, use previous date
+export function todayRomeStr() {
+  const CUTOVER_HOURS = 9;
+  const now = Date.now();
+  return fmtDateRome(new Date(now - CUTOVER_HOURS * 60 * 60 * 1000));
+}
 export function shiftDate(iso, days) {
   const [y,m,d] = iso.split("-").map(Number);
   const t = new Date(Date.UTC(y, m-1, d)); t.setUTCDate(t.getUTCDate() + days);

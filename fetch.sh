@@ -14,7 +14,19 @@ fi
 : "${COOKIE:?Set COOKIE=... in .env}"    # e.g. 'connect.sid=...; hasSeenAppAd=true'
 TZ="${TZ:-Europe/Rome}"
 
-TODAY="$(TZ="$TZ" date +%F)"
+# Determine 'today' in the game sense: new game starts at 09:00 local time.
+# Before 09:00 in $TZ, we treat it as the previous day.
+hour_now="$(TZ="$TZ" date +%H)"
+if [ "$hour_now" -lt 9 ] 2>/dev/null; then
+  # Portable-ish yesterday: prefer BSD date (-v), fallback to GNU date (-d)
+  if ymd=$(TZ="$TZ" date -v-1d +%F 2>/dev/null); then
+    TODAY="$ymd"
+  else
+    TODAY="$(TZ="$TZ" date -d 'yesterday' +%F)"
+  fi
+else
+  TODAY="$(TZ="$TZ" date +%F)"
+fi
 OUT_DIR="data/$TODAY"
 IMG_DIR="$OUT_DIR/images"
 BASE="https://timeguessr.com"
