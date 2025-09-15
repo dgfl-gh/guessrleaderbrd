@@ -146,33 +146,59 @@ class App(BaseHTTPRequestHandler):
     master_key = None
 
     def _send(self, code: int, obj):
+        body = json.dumps(obj).encode('utf-8')
         self.send_response(code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Connection', 'close')
         self.end_headers()
-        self.wfile.write(json.dumps(obj).encode('utf-8'))
+        self.wfile.write(body)
+        self.close_connection = True
 
     def _send_text(self, code: int, text: str, ctype: str):
+        body = text.encode('utf-8')
         self.send_response(code)
         self.send_header('Content-Type', ctype)
         self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Connection', 'close')
         self.end_headers()
-        self.wfile.write(text.encode('utf-8'))
+        self.wfile.write(body)
+        self.close_connection = True
 
-    def _read_json(self):
+    def _read_body_dict(self):
         length = int(self.headers.get('Content-Length') or '0')
         data = self.rfile.read(length) if length else b''
+        ctype = (self.headers.get('Content-Type') or '').split(';',1)[0].strip().lower()
+        if not data:
+            return {}
+        if ctype in ('application/json', 'text/json'):
+            try:
+                return json.loads(data.decode('utf-8'))
+            except Exception:
+                return {}
+        if ctype == 'application/x-www-form-urlencoded':
+            try:
+                return { k: v[0] if isinstance(v, list) and v else '' for k, v in urllib.parse.parse_qs(data.decode('utf-8')).items() }
+            except Exception:
+                return {}
         try:
             return json.loads(data.decode('utf-8'))
         except Exception:
             return {}
+
+    def handle_expect_100(self):
+        # Support Expect: 100-continue
+        self.send_response_only(100)
+        self.end_headers()
 
     def do_POST(self):
         try:
             parsed = urllib.parse.urlparse(self.path)
             path = parsed.path
             if path == '/api/login':
-                body = self._read_json()
+                body = self._read_body_dict()
                 username = str(body.get('username', '')).strip()
                 password = str(body.get('password', ''))
                 if not username or not password:
@@ -280,8 +306,11 @@ class App(BaseHTTPRequestHandler):
                 data = f.read()
             self.send_response(200)
             self.send_header('Content-Type', content_type(filep))
+            self.send_header('Content-Length', str(len(data)))
+            self.send_header('Connection', 'close')
             self.end_headers()
             self.wfile.write(data)
+            self.close_connection = True
         except FileNotFoundError:
             self._send(404, { 'error': 'Not Found' })
 
