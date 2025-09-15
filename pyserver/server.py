@@ -25,8 +25,28 @@ ORIGIN = f'http://localhost:{PORT}'
 TIMEGUESSR = 'https://timeguessr.com'
 
 
+def _systemd_ask_password(prompt: str, timeout_sec: int = 60) -> str | None:
+    """Ask systemd for a password via systemd-ask-password, if available."""
+    import shutil
+    import subprocess
+    exe = shutil.which('systemd-ask-password')
+    if not exe:
+        return None
+    try:
+        cp = subprocess.run([exe, f'--timeout={timeout_sec}', prompt], capture_output=True, text=True, check=True)
+        pwd = (cp.stdout or '').strip('\r\n')
+        return pwd or None
+    except Exception:
+        return None
+
+
 def prompt_passphrase(new: bool):
     import getpass
+    # Prefer systemd-ask-password when running under systemd or when available
+    hint = ' (new; will be created)' if new else ''
+    pwd = _systemd_ask_password(f'GuessrLB passphrase{hint}:')
+    if pwd:
+        return pwd
     if new:
         while True:
             p1 = getpass.getpass('Create server passphrase: ')
