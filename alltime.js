@@ -163,6 +163,8 @@ async function loadAllTime() {
   }
 
   const users = Array.from(byUser.values());
+  // Compute days played per user (count of dates with a score entry)
+  for (const u of users) u.days = u.perDay.size;
   users.sort((a,b)=> b.total - a.total);
 
   // Build cumulative and expanding-mean series per top users
