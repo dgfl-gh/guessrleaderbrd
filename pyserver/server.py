@@ -5,6 +5,8 @@ import urllib.request
 import urllib.parse
 import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import socket
+from socketserver import ThreadingMixIn
 from datetime import datetime
 
 from .storage import (
@@ -334,8 +336,23 @@ def main():
     master_key, _ = load_or_create_keystore(passphrase)
     App.master_key = master_key
 
-    httpd = HTTPServer(('0.0.0.0', PORT), App)
-    print(f'GuessrLB v2 Python server on {ORIGIN}')
+    class ThreadingHTTPServerV6(ThreadingMixIn, HTTPServer):
+        address_family = socket.AF_INET6
+        daemon_threads = True
+        def server_bind(self):
+            try:
+                self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            except OSError:
+                pass
+            super().server_bind()
+
+    try:
+        httpd = ThreadingHTTPServerV6(('::', PORT), App)
+        bind_desc = f'http://[::1]:{PORT} (dual-stack)'
+    except Exception:
+        httpd = HTTPServer(('0.0.0.0', PORT), App)
+        bind_desc = f'http://127.0.0.1:{PORT}'
+    print(f'GuessrLB v2 Python server listening on {bind_desc}')
     httpd.serve_forever()
 
 
