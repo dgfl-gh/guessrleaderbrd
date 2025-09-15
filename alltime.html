@@ -51,14 +51,21 @@
     <main class="grid">
       <section class="card">
         <div id="status" class="status">Loading totals…</div>
-        <div class="chart-wrap"><svg id="chart" viewBox="0 0 1000 320" preserveAspectRatio="none" aria-label="Cumulative scores over time"></svg></div>
+        <div class="controls" style="margin: 0 0 8px 0; gap:6px;">
+          <label for="metric" style="color:var(--muted); font-size:12px;">Chart:</label>
+          <select id="metric">
+            <option value="total" selected>Total score</option>
+            <option value="mean">Average score</option>
+          </select>
+        </div>
+        <div class="chart-wrap"><svg id="chart" viewBox="0 0 1000 320" preserveAspectRatio="none" aria-label="Scores over time"></svg></div>
         <div id="legend" class="legend"></div>
       </section>
 
       <section class="card">
         <table aria-label="All-time leaderboard">
           <thead>
-            <tr><th class="rank">#</th><th>User</th><th class="score">Total</th></tr>
+            <tr><th class="rank">#</th><th>User</th><th class="score">Total</th><th class="score">Days</th><th class="score">Average</th></tr>
           </thead>
           <tbody id="tbody"></tbody>
         </table>

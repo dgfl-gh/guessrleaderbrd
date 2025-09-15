@@ -1,6 +1,24 @@
 import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap } from '/src/guessrleaderbrd/utils.js';
 
 const MAX_USERS = 8; // Show top N lines
+let CHART_MODE = 'total'; // 'total' | 'mean'
+
+function getModeFromURL() {
+  const m = new URLSearchParams(location.search).get('mode');
+  if (!m) return null;
+  const v = String(m).toLowerCase();
+  if (v === 'mean' || v === 'average' || v === 'avg') return 'mean';
+  return 'total';
+}
+
+function setModeURL(mode, replace=false) {
+  const m = mode === 'mean' ? 'average' : 'total';
+  const url = `/alltime?mode=${m}`;
+  try {
+    if (replace) history.replaceState({ mode: m }, '', url);
+    else history.pushState({ mode: m }, '', url);
+  } catch {}
+}
 
 function setStatus(msg, isErr=false) {
   const el = $("status");
@@ -40,7 +58,8 @@ function renderChart(svg, dates, users) {
   const w = 1000, h = 320, padL = 40, padB = 24, padR = 8, padT = 8;
   const innerW = w - padL - padR;
   const innerH = h - padT - padB;
-  const maxY = Math.max(1, ...users.map(u => u.cumulative[u.cumulative.length - 1] || 0));
+  const seriesLast = (u) => (CHART_MODE === 'mean' ? (u.meanSeries?.[u.meanSeries.length-1] || 0) : (u.cumulative?.[u.cumulative.length-1] || 0));
+  const maxY = Math.max(1, ...users.map(seriesLast));
 
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
   svg.innerHTML = '';
@@ -67,7 +86,8 @@ function renderChart(svg, dates, users) {
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', u.color);
     path.setAttribute('stroke-width', '2');
-    path.setAttribute('d', linePath(u.cumulative, innerW, innerH, maxY));
+    const pts = (CHART_MODE === 'mean' ? u.meanSeries : u.cumulative) || [];
+    path.setAttribute('d', linePath(pts, innerW, innerH, maxY));
     g.appendChild(path);
   }
 
@@ -95,10 +115,13 @@ function renderTable(users) {
   const frag = document.createDocumentFragment();
   for (const r of users) {
     const tr = document.createElement('tr');
+    const avg = r.days ? (r.total / r.days) : 0;
     tr.innerHTML = `
       <td class=\"rank\">${r.rank}</td>
       <td class=\"username\">${r.username}</td>
       <td class=\"score\">${r.total.toLocaleString('en-US')}</td>
+      <td class=\"score\">${r.days}</td>
+      <td class=\"score\">${r.days ? avg.toFixed(1) : '–'}</td>
     `;
     frag.appendChild(tr);
   }
@@ -129,7 +152,7 @@ async function loadAllTime() {
   }
   allRowsByDate.sort((a,b)=> a.date.localeCompare(b.date));
 
-  // Aggregate totals and cumulative
+  // Aggregate totals and per-day
   for (const {date, rows} of allRowsByDate) {
     for (const r of rows) {
       if (!byUser.has(r.username)) byUser.set(r.username, { username:r.username, total:0, perDay:new Map() });
@@ -142,14 +165,22 @@ async function loadAllTime() {
   const users = Array.from(byUser.values());
   users.sort((a,b)=> b.total - a.total);
 
-  // Build cumulative series per top users
+  // Build cumulative and expanding-mean series per top users
   const colorMap = buildColorMap(users.map(u => u.username));
   const topUsers = users.slice(0, MAX_USERS).map(u => ({...u, color: colorMap.get(u.username)}));
   for (const u of topUsers) {
     const cum = [];
-    let acc = 0;
-    for (const d of dates) { acc += (u.perDay.get(d) || 0); cum.push(acc); }
+    const mean = [];
+    let acc = 0, played = 0;
+    for (const d of dates) {
+      const v = u.perDay.get(d) || 0;
+      acc += v;
+      if (v > 0) played++;
+      cum.push(acc);
+      mean.push(played > 0 ? (acc / played) : 0);
+    }
     u.cumulative = cum;
+    u.meanSeries = mean;
   }
 
   // Render chart + legend + table
@@ -158,5 +189,38 @@ async function loadAllTime() {
   renderTable(users);
   setStatus(`Loaded ${dates.length} days, ${users.length} users`);
 }
+
+// Wire chart mode toggle
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'metric') {
+    CHART_MODE = e.target.value === 'mean' ? 'mean' : 'total';
+    setModeURL(CHART_MODE, false);
+    loadAllTime();
+  }
+});
+
+// Initialize mode from URL if present
+(function initMode() {
+  const fromURL = getModeFromURL();
+  if (fromURL) {
+    CHART_MODE = fromURL;
+    const sel = document.getElementById('metric');
+    if (sel) sel.value = (CHART_MODE === 'mean' ? 'mean' : 'total');
+  }
+  // Ensure URL reflects current mode without growing history
+  setModeURL(CHART_MODE, true);
+})();
+
+// Handle browser back/forward to keep mode in sync
+window.addEventListener('popstate', () => {
+  const fromURL = getModeFromURL();
+  const newMode = fromURL || 'total';
+  if (newMode !== CHART_MODE) {
+    CHART_MODE = newMode;
+    const sel = document.getElementById('metric');
+    if (sel) sel.value = (CHART_MODE === 'mean' ? 'mean' : 'total');
+    loadAllTime();
+  }
+});
 
 loadAllTime();
