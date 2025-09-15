@@ -94,7 +94,7 @@ async function renderMonth(allDates, y, m) {
     el.innerHTML = `<div class=\"num\">${Number(d.iso.slice(-2))}</div>` + (w ? `<div class=\"meta\">${w.username}</div>` : '');
     if (d.inMonth && winners.has(d.iso)) {
       el.addEventListener('click', () => {
-        location.href = `/src/guessrleaderbrd/daily.html?date=${d.iso}`;
+        location.href = `/daily?date=${d.iso}`;
       });
     } else {
       el.classList.add('empty');
