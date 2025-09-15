@@ -1,4 +1,4 @@
-import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap, fmtDateRome, todayRomeStr } from '/src/guessrleaderbrd/utils.js';
+import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap, fmtDateRome, todayRomeStr, getQueryParam } from '/src/guessrleaderbrd/utils.js';
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]; // Monday-first
@@ -116,6 +116,14 @@ async function renderMonth(allDates, y, m) {
   setStatus(`${winners.size} winner${winners.size===1?'':'s'} this month`);
 }
 
+function setCalendarURL(y, m /* 0-based */, replace=false) {
+  const url = `/calendar?y=${y}&m=${m+1}`; // 1-based in URL
+  try {
+    if (replace) history.replaceState({ y, m }, '', url);
+    else history.pushState({ y, m }, '', url);
+  } catch {}
+}
+
 async function init() {
   let dates;
   try {
@@ -128,21 +136,43 @@ async function init() {
 
   const last = dates[dates.length-1];
   let [y,m] = last.split('-').map(Number); m -= 1;
+  const qy = Number(getQueryParam('y'));
+  const qm1 = Number(getQueryParam('m'));
+  if (!Number.isNaN(qy) && qy >= 1970 && qy <= 3000) y = qy;
+  if (!Number.isNaN(qm1) && qm1 >= 1 && qm1 <= 12) m = qm1 - 1;
   $("year").value = String(y);
   $("month").value = String(m);
+  setCalendarURL(y, m, true);
 
   $("prev").addEventListener('click', () => {
     if (--m < 0) { m = 11; y--; }
     $("year").value = String(y); $("month").value = String(m);
+    setCalendarURL(y, m, false);
     renderMonth(dates, y, m);
   });
   $("next").addEventListener('click', () => {
     if (++m > 11) { m = 0; y++; }
     $("year").value = String(y); $("month").value = String(m);
+    setCalendarURL(y, m, false);
     renderMonth(dates, y, m);
   });
-  $("year").addEventListener('change', () => { y = Number($("year").value); renderMonth(dates, y, m); });
-  $("month").addEventListener('change', () => { m = Number($("month").value); renderMonth(dates, y, m); });
+  $("year").addEventListener('change', () => { y = Number($("year").value); setCalendarURL(y, m, false); renderMonth(dates, y, m); });
+  $("month").addEventListener('change', () => { m = Number($("month").value); setCalendarURL(y, m, false); renderMonth(dates, y, m); });
+
+  // Back/forward support
+  window.addEventListener('popstate', () => {
+    const qy2 = Number(getQueryParam('y'));
+    const qm12 = Number(getQueryParam('m'));
+    let ny = y, nm = m;
+    if (!Number.isNaN(qy2) && qy2 >= 1970 && qy2 <= 3000) ny = qy2;
+    if (!Number.isNaN(qm12) && qm12 >= 1 && qm12 <= 12) nm = qm12 - 1;
+    if (ny !== y || nm !== m) {
+      y = ny; m = nm;
+      $("year").value = String(y);
+      $("month").value = String(m);
+      renderMonth(dates, y, m);
+    }
+  });
 
   renderMonth(dates, y, m);
 }

@@ -56,6 +56,14 @@ if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) {
   state.date = qd > state.today ? state.today : qd;
 }
 
+function setDailyURL(replace=false) {
+  const url = `/daily?date=${state.date}`;
+  try {
+    if (replace) history.replaceState({ date: state.date }, '', url);
+    else history.pushState({ date: state.date }, '', url);
+  } catch {}
+}
+
 function updateHeaderAndFooter() {
   $("meta-badge").textContent = state.date;
   $("date").value = state.date;
@@ -172,6 +180,7 @@ async function load(bust=false) {
 function go(delta) {
   state.date = shiftDate(state.date, delta);
   if (state.date > state.today) state.date = state.today;
+  setDailyURL(false);
   return load();
 }
 
@@ -179,12 +188,29 @@ function go(delta) {
 $("prev").addEventListener("click", () => go(-1));
 $("next").addEventListener("click", () => go(+1));
 $("reload").addEventListener("click", () => load(true));
-$("date").addEventListener("change", () => { state.date = $("date").value || state.today; load(); });
+$("date").addEventListener("change", () => {
+  state.date = $("date").value || state.today;
+  setDailyURL(false);
+  load();
+});
 window.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
   if (e.key === "ArrowRight") { e.preventDefault(); go(+1); }
 });
 
+// Handle browser back/forward
+window.addEventListener('popstate', () => {
+  const search = new URLSearchParams(location.search);
+  const d = search.get('date');
+  const iso = (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) ? d : state.today;
+  if (iso !== state.date) {
+    state.date = iso > state.today ? state.today : iso;
+    load();
+  }
+});
+
 // init
 updateHeaderAndFooter();
+// Ensure URL reflects initial date selection without adding history entry
+setDailyURL(true);
 load();
