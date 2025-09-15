@@ -1,3 +1,6 @@
 .env
 data
 server_data
+
+*.service
+__pycache__
