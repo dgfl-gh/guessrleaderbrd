@@ -142,6 +142,7 @@ def content_type(path: str) -> str:
 
 
 class App(BaseHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
     master_key = None
 
     def _send(self, code: int, obj):
