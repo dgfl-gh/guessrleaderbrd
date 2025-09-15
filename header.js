@@ -18,6 +18,7 @@ export function mountHeader(active) {
       <a class="tab" ${active==='daily' ? 'aria-current="page"' : ''} href="/daily">Daily</a>
       <a class="tab" ${active==='alltime' ? 'aria-current="page"' : ''} href="/alltime">All‑Time</a>
       <a class="tab" ${active==='calendar' ? 'aria-current="page"' : ''} href="/calendar">Calendar</a>
+      <a class="tab" ${active==='login' ? 'aria-current="page"' : ''} href="/login">Login</a>
     </nav>
   `;
 
