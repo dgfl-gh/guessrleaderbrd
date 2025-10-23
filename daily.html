@@ -189,6 +189,28 @@
                 border-radius: 12px;
                 overflow: hidden;
             }
+            .map-gate {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+                padding: 24px;
+                text-align: center;
+                color: var(--muted);
+            }
+            .map-gate button {
+                min-width: 160px;
+            }
+            .map-gate-question {
+                font-weight: 600;
+                color: var(--fg);
+            }
+            .map-gate-actions {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
             /* Leaflet popup tweaks for theme */
             .leaflet-container {
                 background: #0b0c10;
@@ -277,7 +299,17 @@
                         <span>Photo locations</span
                         ><span id="map-status"></span>
                     </div>
-                    <div id="map" class="map-container"></div>
+                    <div id="map-gate" class="map-gate" hidden>
+                        <button id="map-gate-open" type="button">view today's game?</button>
+                        <div id="map-gate-confirm" hidden>
+                            <div class="map-gate-question">Are you sure?</div>
+                            <div class="map-gate-actions">
+                                <button id="map-gate-yes" type="button">Yes, show it</button>
+                                <button id="map-gate-no" type="button">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="map" class="map-container" hidden></div>
                 </section>
             </main>
         </div>

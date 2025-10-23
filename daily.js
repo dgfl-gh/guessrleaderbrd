@@ -76,6 +76,122 @@ function updateHeaderAndFooter() {
 let leafletMap = null;
 let markerLayer = null;
 
+const mapEls = {
+  card: document.getElementById('map-card'),
+  status: document.getElementById('map-status'),
+  container: document.getElementById('map'),
+  gate: document.getElementById('map-gate'),
+  gateOpen: document.getElementById('map-gate-open'),
+  gateConfirm: document.getElementById('map-gate-confirm'),
+  gateYes: document.getElementById('map-gate-yes'),
+  gateNo: document.getElementById('map-gate-no')
+};
+
+function resetMapGate() {
+  if (!mapEls.gate) return;
+  if (mapEls.gateOpen) {
+    mapEls.gateOpen.hidden = false;
+    mapEls.gateOpen.disabled = false;
+  }
+  if (mapEls.gateConfirm) mapEls.gateConfirm.hidden = true;
+  if (mapEls.gateYes) mapEls.gateYes.disabled = false;
+  if (mapEls.gateNo) mapEls.gateNo.disabled = false;
+}
+
+function renderPhotosOnMap(photos) {
+  const mapEl = mapEls.container;
+  if (!mapEl) return;
+
+  if (!leafletMap) {
+    leafletMap = L.map(mapEl, { worldCopyJump: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(leafletMap);
+  }
+
+  if (markerLayer) leafletMap.removeLayer(markerLayer);
+  markerLayer = L.featureGroup();
+
+  const pts = [];
+  for (const p of photos) {
+    const lat = p?.Location?.lat, lng = p?.Location?.lng;
+    if (typeof lat !== 'number' || typeof lng !== 'number') continue;
+    const img = localImageFromURL(p.URL);
+    const imageHtml = img
+      ? `<img alt="" src="${img}" style="display:block;max-width:320px;width:100%;height:auto;border-radius:8px;margin-bottom:6px;">`
+      : '';
+    const html = `
+        ${imageHtml}
+        <div style="font-weight:700;margin-bottom:4px;">${(p.Country || '')}${p.Year ? ` · ${p.Year}` : ''}</div>
+        <div style="color:#9aa3b2;font-size:12px;margin-bottom:6px;">${lat.toFixed(4)}, ${lng.toFixed(4)}</div>
+        <div>${p.Description || ''}</div>`;
+    const m = L.marker([lat, lng]).bindPopup(html, { maxWidth: 360 });
+    markerLayer.addLayer(m);
+    pts.push([lat, lng]);
+  }
+
+  markerLayer.addTo(leafletMap);
+  leafletMap.invalidateSize();
+  if (pts.length === 1) {
+    leafletMap.setView(pts[0], 5);
+  } else if (pts.length > 1) {
+    leafletMap.fitBounds(markerLayer.getBounds(), { padding: [30, 30] });
+  }
+}
+
+async function revealTodayMap() {
+  if (!mapEls.card || !mapEls.status || !mapEls.gate || !mapEls.container || state.date !== state.today) return;
+  const date = state.date;
+  const yesBtn = mapEls.gateYes;
+  const noBtn = mapEls.gateNo;
+
+  if (yesBtn) yesBtn.disabled = true;
+  if (noBtn) noBtn.disabled = true;
+  mapEls.status.textContent = 'Loading…';
+
+  try {
+    const photos = await fetchJSON(`${BASE}/${date}/photos.json`);
+    if (state.date !== date) return;
+    if (!Array.isArray(photos) || photos.length === 0) {
+      mapEls.status.textContent = 'No photos available.';
+      if (yesBtn) yesBtn.disabled = false;
+      if (noBtn) noBtn.disabled = false;
+      return;
+    }
+    mapEls.container.hidden = false;
+    mapEls.gate.hidden = true;
+    mapEls.status.textContent = `${photos.length} photos`;
+    renderPhotosOnMap(photos);
+  } catch (e) {
+    if (state.date === date) {
+      mapEls.status.textContent = 'Error loading map.';
+      if (yesBtn) yesBtn.disabled = false;
+      if (noBtn) noBtn.disabled = false;
+    }
+  }
+}
+
+if (mapEls.gateOpen && mapEls.gateConfirm) {
+  mapEls.gateOpen.addEventListener('click', () => {
+    if (state.date !== state.today) return;
+    mapEls.gateOpen.hidden = true;
+    mapEls.gateConfirm.hidden = false;
+  });
+}
+
+if (mapEls.gateNo && mapEls.gateOpen && mapEls.gateConfirm) {
+  mapEls.gateNo.addEventListener('click', () => {
+    if (state.date !== state.today) return;
+    mapEls.gateConfirm.hidden = true;
+    mapEls.gateOpen.hidden = false;
+  });
+}
+
+if (mapEls.gateYes) {
+  mapEls.gateYes.addEventListener('click', revealTodayMap);
+}
+
 function localImageFromURL(urlStr) {
   try {
     const u = new URL(urlStr);
@@ -86,56 +202,35 @@ function localImageFromURL(urlStr) {
 }
 
 async function tryRenderMap() {
-  const isPast = state.date < state.today;
-  const mapCard = document.getElementById('map-card');
-  const mapEl = document.getElementById('map');
-  const mapStatus = document.getElementById('map-status');
-  mapStatus.textContent = '';
-  if (!isPast) { mapCard.hidden = true; return; }
+  if (!mapEls.card || !mapEls.status || !mapEls.container) return;
+  const currentDate = state.date;
+  const isPast = currentDate < state.today;
+  const isToday = currentDate === state.today;
 
-  try {
-    // Load stable photos.json for this day
-    const photos = await fetchJSON(`${BASE}/${state.date}/photos.json`);
-    if (!Array.isArray(photos) || photos.length === 0) { mapCard.hidden = true; return; }
-    mapCard.hidden = false;
-    mapStatus.textContent = `${photos.length} photos`;
+  mapEls.status.textContent = '';
+  mapEls.container.hidden = true;
+  mapEls.card.hidden = true;
+  resetMapGate();
+  if (mapEls.gate) mapEls.gate.hidden = true;
 
-    // Init Leaflet map once
-    if (!leafletMap) {
-      leafletMap = L.map(mapEl, { worldCopyJump: true });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(leafletMap);
+  if (isPast) {
+    try {
+      const photos = await fetchJSON(`${BASE}/${currentDate}/photos.json`);
+      if (state.date !== currentDate) return;
+      if (!Array.isArray(photos) || photos.length === 0) return;
+      mapEls.card.hidden = false;
+      mapEls.container.hidden = false;
+      mapEls.status.textContent = `${photos.length} photos`;
+      renderPhotosOnMap(photos);
+    } catch (e) {
+      if (state.date === currentDate) mapEls.card.hidden = true;
     }
+    return;
+  }
 
-    // Reset marker layer
-    if (markerLayer) leafletMap.removeLayer(markerLayer);
-    markerLayer = L.featureGroup();
-
-    const pts = [];
-    for (const p of photos) {
-      const lat = p?.Location?.lat, lng = p?.Location?.lng;
-      if (typeof lat !== 'number' || typeof lng !== 'number') continue;
-      const img = localImageFromURL(p.URL);
-      const html = `
-        ${img ? `<img alt="" src="${img}" style="display:block;max-width:320px;width:100%;height:auto;border-radius:8px;margin-bottom:6px;">` : ''}
-        <div style="font-weight:700;margin-bottom:4px;">${(p.Country || '')}${p.Year ? ` · ${p.Year}` : ''}</div>
-        <div style="color:#9aa3b2;font-size:12px;margin-bottom:6px;">${lat.toFixed(4)}, ${lng.toFixed(4)}</div>
-        <div>${p.Description || ''}</div>`;
-      const m = L.marker([lat, lng]).bindPopup(html, { maxWidth: 360 });
-      markerLayer.addLayer(m);
-      pts.push([lat, lng]);
-    }
-
-    markerLayer.addTo(leafletMap);
-    if (pts.length === 1) {
-      leafletMap.setView(pts[0], 5);
-    } else if (pts.length > 1) {
-      leafletMap.fitBounds(markerLayer.getBounds(), { padding: [30, 30] });
-    }
-  } catch (e) {
-    mapCard.hidden = true;
+  if (isToday) {
+    mapEls.card.hidden = false;
+    if (mapEls.gate) mapEls.gate.hidden = false;
   }
 }
 
