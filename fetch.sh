@@ -12,10 +12,10 @@ if [ -f ./.env ]; then
   set +a
 fi
 : "${COOKIE:?Set COOKIE=... in .env}"    # e.g. 'connect.sid=...; hasSeenAppAd=true'
-TZ="${TZ:-Europe/Rome}"
+TZ="${TZ:-UTC}"
 
-# Determine 'today' in the game sense: new game starts at 09:00 local time.
-# Before 09:00 in $TZ, we treat it as the previous day.
+# Determine 'today' in the game sense: new game starts at 07:00 UTC.
+# Before 07:00 in $TZ, we treat it as the previous day.
 hour_now="$(TZ="$TZ" date +%H)"
 if [ "$hour_now" -lt 9 ] 2>/dev/null; then
   # Portable-ish yesterday: prefer BSD date (-v), fallback to GNU date (-d)
