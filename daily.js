@@ -220,6 +220,7 @@ async function tryRenderMap() {
       if (!Array.isArray(photos) || photos.length === 0) return;
       mapEls.card.hidden = false;
       mapEls.container.hidden = false;
+      mapEls.gate.hidden = true;
       mapEls.status.textContent = `${photos.length} photos`;
       renderPhotosOnMap(photos);
     } catch (e) {
