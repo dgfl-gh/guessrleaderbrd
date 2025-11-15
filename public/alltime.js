@@ -1,4 +1,4 @@
-import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap } from '/src/guessrleaderbrd/utils.js';
+import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap } from './utils.js';
 
 const MAX_USERS = 8; // Show top N lines
 let CHART_MODE = 'total'; // 'total' | 'mean'

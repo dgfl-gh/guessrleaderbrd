@@ -1,4 +1,4 @@
-const BASE = "/src/guessrleaderbrd/data";
+const BASE = "/data";
 const TZ = "Europe/Rome";
 
 const $ = (id) => document.getElementById(id);

@@ -1,5 +1,5 @@
 // Shared utilities for Guessr Leaderboard frontend
-export const BASE_DATA = "/src/guessrleaderbrd/data";
+export const BASE_DATA = "/data";
 export const TZ = "Europe/Rome";
 
 export const $ = (id) => document.getElementById(id);

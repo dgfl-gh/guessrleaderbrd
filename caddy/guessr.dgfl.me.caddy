@@ -1,0 +1,23 @@
+guessr.dgfl.me {
+	root * /srv/www/dgfl.me/sites/guessrleaderbrd/public
+	encode zstd gzip
+
+	handle_path /data/* {
+		root * /srv/www/dgfl.me/sites/guessrleaderbrd/data
+		file_server
+	}
+
+	@home path /
+	rewrite @home /daily.html
+
+	@daily path /daily
+	rewrite @daily /daily.html
+
+	@alltime path /alltime
+	rewrite @alltime /alltime.html
+
+	@calendar path /calendar
+	rewrite @calendar /calendar.html
+
+	file_server
+}

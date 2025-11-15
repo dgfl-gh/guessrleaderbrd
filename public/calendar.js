@@ -1,4 +1,4 @@
-import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap, fmtDateRome, todayRomeStr, getQueryParam } from '/src/guessrleaderbrd/utils.js';
+import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap, fmtDateRome, todayRomeStr, getQueryParam } from './utils.js';
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]; // Monday-first
