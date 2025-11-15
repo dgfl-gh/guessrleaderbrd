@@ -1,6 +1,7 @@
 #!/bin/sh
 # fetch.sh — KISS backend for Timeguessr
 # Requires: curl, jq, ImageMagick (magick or convert)
+# Run with 'today' (or 'status') to inspect the computed game day without fetching.
 
 set -eu
 cd "$(dirname "$0")"
@@ -12,20 +13,25 @@ if [ -f ./.env ]; then
   set +a
 fi
 : "${COOKIE:?Set COOKIE=... in .env}"    # e.g. 'connect.sid=...; hasSeenAppAd=true'
-TZ="${TZ:-UTC}"
+LOCAL_TZ="${LOCAL_TZ:-${TZ:-UTC}}"
+GAME_TZ="${GAME_TZ:-America/New_York}"
+ROLLOVER_HOUR="${ROLLOVER_HOUR:-2}"
+# Author confirmed the challenge resets at 02:00 EST (i.e., America/New_York).
+# During daylight saving time this clocks in at 03:00 local (EDT) automatically.
+# Override GAME_TZ/ROLLOVER_HOUR in .env if their schedule changes.
 
-# Determine 'today' in the game sense: new game starts at 07:00 UTC.
-# Before 07:00 in $TZ, we treat it as the previous day.
-hour_now="$(TZ="$TZ" date +%H)"
-if [ "$hour_now" -lt 9 ] 2>/dev/null; then
+# Determine 'today' in the game sense: new game starts at $ROLLOVER_HOUR:00 in $GAME_TZ.
+# Before that rollover we treat it as the previous day to match Timeguessr's schedule.
+hour_now="$(TZ="$GAME_TZ" date +%H)"
+if [ "$hour_now" -lt "$ROLLOVER_HOUR" ] 2>/dev/null; then
   # Portable-ish yesterday: prefer BSD date (-v), fallback to GNU date (-d)
-  if ymd=$(TZ="$TZ" date -v-1d +%F 2>/dev/null); then
+  if ymd=$(TZ="$GAME_TZ" date -v-1d +%F 2>/dev/null); then
     TODAY="$ymd"
   else
-    TODAY="$(TZ="$TZ" date -d 'yesterday' +%F)"
+    TODAY="$(TZ="$GAME_TZ" date -d 'yesterday' +%F)"
   fi
 else
-  TODAY="$(TZ="$TZ" date +%F)"
+  TODAY="$(TZ="$GAME_TZ" date +%F)"
 fi
 OUT_DIR="data/$TODAY"
 IMG_DIR="$OUT_DIR/images"
@@ -109,9 +115,74 @@ update_users() {
   fi
 }
 
+echo_datetime() {
+  echo "local date ($LOCAL_TZ): $(TZ="$LOCAL_TZ" date)"
+}
+
+format_epoch_for_tz() {
+  tz="$1"
+  epoch="$2"
+  if out=$(TZ="$tz" date -d "@$epoch" 2>/dev/null); then
+    printf '%s' "$out"
+  else
+    TZ="$tz" date -r "$epoch" 2>/dev/null
+  fi
+}
+
+next_rollover_epoch() {
+  hour_now="$(TZ="$GAME_TZ" date +%H)"
+  if [ "$hour_now" -lt "$ROLLOVER_HOUR" ] 2>/dev/null; then
+    next_date="$(TZ="$GAME_TZ" date +%F)"
+  else
+    if nd=$(TZ="$GAME_TZ" date -v+1d +%F 2>/dev/null); then
+      next_date="$nd"
+    else
+      next_date="$(TZ="$GAME_TZ" date -d 'tomorrow' +%F)"
+    fi
+  fi
+  dt=$(printf '%s %02d:00:00' "$next_date" "$ROLLOVER_HOUR")
+  if epoch=$(TZ="$GAME_TZ" date -d "$dt" +%s 2>/dev/null); then
+    printf '%s' "$epoch"
+    return 0
+  elif epoch=$(TZ="$GAME_TZ" date -j -f "%Y-%m-%d %H:%M:%S" "$dt" +%s 2>/dev/null); then
+    printf '%s' "$epoch"
+    return 0
+  fi
+  return 1
+}
+
+show_today() {
+  echo_datetime
+  echo "game tz ($GAME_TZ): $(TZ="$GAME_TZ" date)"
+  printf 'rollover hour (game tz): %02d:00\n' "$ROLLOVER_HOUR"
+  if next_epoch=$(next_rollover_epoch); then
+    now_epoch=$(date +%s)
+    if [ "$next_epoch" -lt "$now_epoch" ]; then
+      next_epoch="$now_epoch"
+    fi
+    seconds_left=$((next_epoch - now_epoch))
+    if [ "$seconds_left" -lt 0 ]; then
+      seconds_left=0
+    fi
+    hours_left=$((seconds_left / 3600))
+    mins_left=$(((seconds_left % 3600) / 60))
+    secs_left=$((seconds_left % 60))
+    rollover_game="$(format_epoch_for_tz "$GAME_TZ" "$next_epoch")"
+    rollover_local="$(format_epoch_for_tz "$LOCAL_TZ" "$next_epoch")"
+    echo "next rollover (game tz): $rollover_game"
+    echo "next rollover (local tz): $rollover_local"
+    printf 'countdown: %02dh %02dm %02ds (%s seconds)\n' "$hours_left" "$mins_left" "$secs_left" "$seconds_left"
+  else
+    echo "next rollover: unable to compute (need GNU date -d or BSD date -j)"
+  fi
+  echo "computed TODAY: $TODAY"
+}
+
 case "${1:-both}" in
-  daily)   fetch_daily; update_index; update_users ;;
-  friends) fetch_friends; update_index; update_users ;;
-  both)    fetch_daily; fetch_friends; update_index; update_users ;;
-  *)       echo "usage: $0 [daily|friends|both]" >&2; exit 2 ;;
+	daily)   echo_datetime; fetch_daily; update_index; update_users ;;
+        friends) echo_datetime; fetch_friends; update_index; update_users ;;
+        both)    echo_datetime; fetch_daily; fetch_friends; update_index; update_users ;;
+        today|status|inspect)
+                  show_today ;;
+          *)       echo "usage: $0 [daily|friends|both|today|status|inspect]" >&2; exit 2 ;;
 esac
