@@ -5,23 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>EMN TimeGuessr Leaderboard</title>
   <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css">
   <style>
-  :root { --bg:#0b0c10; --card:#111218; --muted:#9aa3b2; --fg:#e6e9ef; --acc:#6ea8fe; --border:#1b1e27; }
-  * { box-sizing: border-box; }
-  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial,"Apple Color Emoji","Segoe UI Emoji"; }
-  .container { max-width:1000px; margin:0 auto; padding:24px 16px 48px; }
-  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
-  h1 { font-size:20px; margin:0; letter-spacing:.2px; }
-  .badge { display:inline-block; padding:2px 8px; border-radius:999px; background:#18202e; color:#bcd2ff; font-size:12px; border:1px solid #24304a; }
-  nav { margin-top:12px; display:flex; gap:8px; }
-  .tab { display:inline-flex; align-items:center; height:32px; padding:0 12px; border-radius:10px; border:1px solid var(--border); background:#10131b; color:#cbd4e1; text-decoration:none; font-weight:600; letter-spacing:.2px; }
-  .tab:hover { border-color:#2a2f3a }
-  .tab[aria-current="page"] { background:#18202e; color:#dbe7ff; border-color:#24304a; }
-  .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:12px 0; }
-  button, select { background:#1a1c23; color:var(--fg); border:1px solid var(--border); border-radius:10px; height:36px; padding:0 12px; font:inherit; cursor:pointer; }
-  button:hover { border-color:#2a2f3a }
-  main .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; box-shadow:0 10px 18px rgba(0,0,0,.25); }
-  .status { color:var(--muted); font-size:12px; margin-bottom:6px; }
   .cal { width:100%; display:grid; grid-template-columns: repeat(7, 1fr); gap:8px; }
   .dow { color:var(--muted); font-weight:600; font-size:12px; text-align:center; padding:6px 0; }
   .day { position:relative; border:1px solid var(--border); border-radius:12px; min-height:86px; padding:8px; background:#0f1117; cursor:pointer; transition:transform .05s ease; }
@@ -30,12 +15,6 @@
   .day .meta { position:absolute; right:8px; bottom:6px; color:#e6e9ef; font-size:11px; text-shadow:0 1px 0 rgba(0,0,0,.35); }
   .day.inactive { opacity:.4; cursor:default; }
   .day.empty { background:#0f1117; }
-  .legend { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 0; }
-  .legend-item { display:flex; align-items:center; gap:8px; padding:4px 8px; border:1px solid var(--border); border-radius:10px; background:#0f1117; }
-  .swatch { width:14px; height:14px; border-radius:4px; border:1px solid rgba(255,255,255,.2); }
-  .kbd { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; background:#0f1117; border:1px solid #1d2130; border-bottom-color:#171b28; padding:1px 6px; border-radius:6px; font-size:12px; color:#c6cbd3; }
-  .link { color:#bcd2ff; text-decoration: none; }
-  .link:hover { text-decoration: underline; }
   </style>
   <script type="module" src="/calendar.js"></script>
 </head>

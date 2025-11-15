@@ -2,6 +2,8 @@ import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap } from './utils.j
 
 const MAX_USERS = 8; // Show top N lines
 let CHART_MODE = 'total'; // 'total' | 'mean'
+let cachedReport = null;
+let reportPromise = null;
 
 function getModeFromURL() {
   const m = new URLSearchParams(location.search).get('mode');
@@ -128,31 +130,27 @@ function renderTable(users) {
   tbody.appendChild(frag);
 }
 
-async function loadAllTime() {
-  setStatus('Loading index…');
+async function gatherAllTimeData(onProgress = () => {}) {
+  onProgress('Loading index…');
   let dates;
   try {
     dates = await loadIndex();
   } catch (e) {
-    setStatus(`Error loading index.json: ${e.message}`, true); return;
+    throw new Error(`Error loading index.json: ${e.message}`);
   }
-  $("meta-badge").textContent = `${dates.length} days`;
-  if (!dates.length) { setStatus('No dates found.'); return; }
+  if (!dates.length) return { dates: [], users: [], topUsers: [] };
 
   const byUser = new Map();
-
-  // Fetch in small batches to avoid overwhelming server
   const batch = 6;
   const allRowsByDate = [];
   for (let i=0; i<dates.length; i+=batch) {
-    setStatus(`Loading days ${Math.min(i+1,dates.length)}-${Math.min(i+batch,dates.length)} of ${dates.length}…`);
+    onProgress(`Loading days ${Math.min(i+1,dates.length)}-${Math.min(i+batch,dates.length)} of ${dates.length}…`);
     const part = dates.slice(i, i+batch).map(d => fetchDay(d).then(rows => ({date:d, rows})));
     const res = await Promise.all(part);
     allRowsByDate.push(...res);
   }
   allRowsByDate.sort((a,b)=> a.date.localeCompare(b.date));
 
-  // Aggregate totals and per-day
   for (const {date, rows} of allRowsByDate) {
     for (const r of rows) {
       if (!byUser.has(r.username)) byUser.set(r.username, { username:r.username, total:0, perDay:new Map() });
@@ -163,11 +161,9 @@ async function loadAllTime() {
   }
 
   const users = Array.from(byUser.values());
-  // Compute days played per user (count of dates with a score entry)
   for (const u of users) u.days = u.perDay.size;
   users.sort((a,b)=> b.total - a.total);
 
-  // Build cumulative and expanding-mean series per top users
   const colorMap = buildColorMap(users.map(u => u.username));
   const topUsers = users.slice(0, MAX_USERS).map(u => ({...u, color: colorMap.get(u.username)}));
   for (const u of topUsers) {
@@ -185,11 +181,61 @@ async function loadAllTime() {
     u.meanSeries = mean;
   }
 
-  // Render chart + legend + table
+  return { dates, users, topUsers };
+}
+
+function renderAllTimeView({ dates, users, topUsers }) {
   renderChart($("chart"), dates, topUsers);
   renderLegend(topUsers);
   renderTable(users);
-  setStatus(`Loaded ${dates.length} days, ${users.length} users`);
+}
+
+function renderFromReport(report, source = 'fresh') {
+  if (!report) return;
+  $("meta-badge").textContent = `${report.dates.length} days`;
+  renderAllTimeView(report);
+  if (!report.dates.length) setStatus('No dates found.');
+  else {
+    const suffix = source === 'cache' ? ' (cached)' : '';
+    setStatus(`Loaded ${report.dates.length} days, ${report.users.length} users${suffix}`);
+  }
+}
+
+async function loadAllTime({ force = false } = {}) {
+  if (force) {
+    cachedReport = null;
+    reportPromise = null;
+  }
+
+  if (cachedReport && !force) {
+    setStatus('Rendering cached data…');
+    renderFromReport(cachedReport, 'cache');
+    return cachedReport;
+  }
+
+  if (!reportPromise) {
+    reportPromise = gatherAllTimeData(setStatus)
+      .then((report) => {
+        cachedReport = report;
+        return report;
+      })
+      .catch((err) => {
+        cachedReport = null;
+        throw err;
+      })
+      .finally(() => {
+        reportPromise = null;
+      });
+  }
+
+  try {
+    const report = await reportPromise;
+    renderFromReport(report, 'fresh');
+    return report;
+  } catch (e) {
+    setStatus(e.message || 'Unknown error loading data', true);
+    return null;
+  }
 }
 
 // Wire chart mode toggle
@@ -197,7 +243,8 @@ document.addEventListener('change', (e) => {
   if (e.target && e.target.id === 'metric') {
     CHART_MODE = e.target.value === 'mean' ? 'mean' : 'total';
     setModeURL(CHART_MODE, false);
-    loadAllTime();
+    if (cachedReport) renderFromReport(cachedReport, 'cache');
+    else loadAllTime();
   }
 });
 
@@ -221,7 +268,8 @@ window.addEventListener('popstate', () => {
     CHART_MODE = newMode;
     const sel = document.getElementById('metric');
     if (sel) sel.value = (CHART_MODE === 'mean' ? 'mean' : 'total');
-    loadAllTime();
+    if (cachedReport) renderFromReport(cachedReport, 'cache');
+    else loadAllTime();
   }
 });
 
