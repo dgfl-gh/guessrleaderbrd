@@ -76,6 +76,9 @@ nav {
   flex-wrap: wrap;
   margin: 12px 0;
 }
+.card > .controls:first-child {
+  margin-top: 0;
+}
 .controls-chart {
   justify-content: space-between;
   gap: 16px;
@@ -138,11 +141,6 @@ main .card {
 .card-title {
   font-weight: 600;
   font-size: 15px;
-}
-.status {
-  color: var(--muted);
-  font-size: 12px;
-  margin-bottom: 6px;
 }
 table {
   width: 100%;
@@ -388,4 +386,7 @@ footer {
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
+}
+.grid {
+  margin-top: 16px;
 }

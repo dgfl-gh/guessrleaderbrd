@@ -35,11 +35,6 @@ function setModeURL(mode, replace=false) {
   } catch {}
 }
 
-function setStatus(msg, isErr=false) {
-  const el = $("status");
-  el.textContent = msg;
-  el.className = "status" + (isErr ? " err" : "");
-}
 
 function lightenColor(colorStr) {
   const c = d3.color(colorStr);
@@ -875,11 +870,14 @@ if (rollingRange) {
 }
 syncRollingInputs(rollingWindow);
 
-async function gatherAllTimeData(onProgress = () => {}) {
-  onProgress('Loading aggregated data…');
+async function gatherAllTimeData() {
+  console.time('alltime-data');
+  console.log('Loading aggregated data…');
   const report = await fetchAggregatedReport();
   const userCount = report.users?.length || 0;
-  onProgress(`Loaded aggregated data for ${userCount} users`);
+  const msg = `Loaded aggregated data for ${userCount} users`;
+  console.log(msg);
+  console.timeEnd('alltime-data');
   return report;
 }
 
@@ -891,11 +889,7 @@ function renderFromReport(report, source = 'fresh') {
   renderLegend(report.topUsers || []);
   renderTable(report.users || []);
   syncSeriesHighlight();
-  if (!report.dates.length) setStatus('No dates found.');
-  else {
-    const suffix = source === 'cache' ? ' (cached)' : '';
-    setStatus(`Loaded ${report.dates.length} days, ${report.users.length} users${suffix}`);
-  }
+  if (!report.dates.length) console.warn('No dates found in aggregated report.');
 }
 
 async function loadAllTime({ force = false } = {}) {
@@ -905,13 +899,13 @@ async function loadAllTime({ force = false } = {}) {
   }
 
   if (cachedReport && !force) {
-    setStatus('Rendering cached data…');
+    console.log('Rendering cached data…');
     renderFromReport(cachedReport, 'cache');
     return cachedReport;
   }
 
   if (!reportPromise) {
-    reportPromise = gatherAllTimeData(setStatus)
+    reportPromise = gatherAllTimeData()
       .then((report) => {
         cachedReport = report;
         return report;
@@ -930,7 +924,7 @@ async function loadAllTime({ force = false } = {}) {
     renderFromReport(report, 'fresh');
     return report;
   } catch (e) {
-    setStatus(e.message || 'Unknown error loading data', true);
+    console.error(e?.message || e || 'Unknown error loading data');
     return null;
   }
 }
