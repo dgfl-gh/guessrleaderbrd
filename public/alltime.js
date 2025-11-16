@@ -2,7 +2,7 @@ import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
 import { BASE_DATA, $, fetchJSON, buildColorMap } from './utils.js';
 
 const MAX_USERS = 10; // Show top N lines
-let CHART_MODE = 'total'; // 'total' | 'mean'
+let CHART_MODE = 'podium';
 const ROLLING_MIN = 1;
 const ROLLING_MAX = 31;
 let rollingWindow = 7;
@@ -21,6 +21,7 @@ function getModeFromURL() {
   const v = String(m).toLowerCase();
   if (v === 'mean' || v === 'average' || v === 'avg') return 'mean';
   if (v === 'scatter' || v === 'daily') return 'scatter';
+  if (v === 'podium') return 'podium';
   return 'total';
 }
 
@@ -28,6 +29,7 @@ function setModeURL(mode, replace=false) {
   let m = 'total';
   if (mode === 'mean') m = 'average';
   else if (mode === 'scatter') m = 'scatter';
+  else if (mode === 'podium') m = 'podium';
   const url = `/alltime?mode=${m}`;
   try {
     if (replace) history.replaceState({ mode: m }, '', url);
@@ -77,11 +79,14 @@ function normalizeAggregatedReport(raw = {}) {
     hydratedTop.push(clone);
   });
 
+  const podium = buildPodiumEntries(hydratedTop, dates);
+
   return {
     dates,
     users,
     topUsers: hydratedTop,
     generatedAt: raw.generatedAt,
+    podium,
   };
 }
 
@@ -310,13 +315,21 @@ function renderScatterChart(report) {
 
   const allPoints = pointsByUser.flatMap((entry) => entry.points);
   const rollingValues = rollingSeries.flatMap((s) => s.points.map((p) => p.value));
-  const yCandidates = [];
-  if (allPoints.length) yCandidates.push(d3.max(allPoints, (p) => p.value));
-  if (rollingValues.length) yCandidates.push(d3.max(rollingValues));
-  const maxY = Math.max(1, yCandidates.length ? d3.max(yCandidates) : 1);
+  const maxCandidates = [];
+  const minCandidates = [];
+  if (allPoints.length) {
+    maxCandidates.push(d3.max(allPoints, (p) => p.value));
+    minCandidates.push(d3.min(allPoints, (p) => p.value));
+  }
+  if (rollingValues.length) {
+    maxCandidates.push(d3.max(rollingValues));
+    minCandidates.push(d3.min(rollingValues));
+  }
+  const maxY = Math.max(1, maxCandidates.length ? d3.max(maxCandidates) : 1);
+  const minY = Math.min(0, minCandidates.length ? d3.min(minCandidates) : 0);
 
   const y = d3.scaleLinear()
-    .domain([0, maxY * 1.05])
+    .domain([minY * 0.95, maxY * 1.05])
     .range([innerHeight, 0])
     .nice();
 
@@ -394,6 +407,119 @@ function renderScatterChart(report) {
     yScale: y,
     users: topUsers
   });
+}
+
+function buildPodiumEntries(users = [], dates = []) {
+  if (!Array.isArray(users) || !users.length || !Array.isArray(dates) || !dates.length) return [];
+  const entries = [];
+  users.forEach((user) => {
+    const scores = user.dailyScores || [];
+    for (let i = 0; i < scores.length; i++) {
+      const value = scores[i];
+      if (value == null) continue;
+      entries.push({
+        username: user.username,
+        color: user.color,
+        score: value,
+        date: dates[i],
+        dateObj: dates[i] ? new Date(`${dates[i]}T00:00:00Z`) : null
+      });
+    }
+  });
+  entries.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.date && b.date && a.date !== b.date) return new Date(b.date) - new Date(a.date);
+    return a.username.localeCompare(b.username);
+  });
+  return entries.slice(0, 3);
+}
+
+function hydratePodiumSlot(slot, entry) {
+  if (!slot) return;
+  const userEl = slot.querySelector('[data-field="user"]');
+  const scoreEl = slot.querySelector('[data-field="score"]');
+  const dateEl = slot.querySelector('[data-field="date"]');
+  const hasEntry = Boolean(entry);
+
+  slot.classList.toggle('is-empty', !hasEntry);
+  if (hasEntry) {
+    slot.removeAttribute('aria-label');
+    slot.style.setProperty('--podium-color', entry.color || '#4b5569');
+    if (userEl) userEl.textContent = entry.username;
+    if (scoreEl) {
+      scoreEl.textContent = formatScore(entry.score, 'scatter');
+      scoreEl.classList.remove('muted-text');
+    }
+    if (dateEl) dateEl.textContent = entry.dateObj ? formatDateLabel(entry.dateObj) : (entry.date || '');
+  } else {
+    slot.setAttribute('aria-label', 'No entry yet');
+    slot.style.removeProperty('--podium-color');
+    if (userEl) userEl.textContent = 'TBD';
+    if (scoreEl) {
+      scoreEl.textContent = 'Awaiting hero';
+      scoreEl.classList.add('muted-text');
+    }
+    if (dateEl) dateEl.textContent = '';
+  }
+}
+
+function renderPodium(report) {
+  const podiumEl = $("podium");
+  if (!podiumEl) return;
+  const stage = podiumEl.querySelector('.podium-stage');
+  const slots = stage ? Array.from(stage.querySelectorAll('.podium-slot')) : [];
+  const slotByRank = new Map(slots.map((slot) => [Number(slot.dataset.rank) || 0, slot]));
+  const entries = (report.podium && report.podium.length)
+    ? report.podium
+    : buildPodiumEntries(report.topUsers || [], report.dates || []);
+
+  if (!entries.length) {
+    slots.forEach((slot) => hydratePodiumSlot(slot, null));
+    if (stage) stage.hidden = true;
+    return;
+  }
+
+  if (stage) stage.hidden = false;
+
+  const layout = [
+    { rank: 2, entry: entries[1] || null },
+    { rank: 1, entry: entries[0] || null },
+    { rank: 3, entry: entries[2] || null }
+  ];
+  layout.forEach(({ rank, entry }) => {
+    const slot = slotByRank.get(rank);
+    if (slot) hydratePodiumSlot(slot, entry);
+  });
+}
+
+function syncVisualizationShell() {
+  const chartWrap = document.querySelector('.chart-wrap');
+  const legendEl = $("legend");
+  const podiumEl = $("podium");
+  const svgElement = $("chart");
+  const showPodium = CHART_MODE === 'podium';
+
+  if (chartWrap) {
+    chartWrap.hidden = showPodium;
+    chartWrap.setAttribute('aria-hidden', showPodium ? 'true' : 'false');
+    chartWrap.style.display = showPodium ? 'none' : '';
+  }
+  if (legendEl) {
+    const showLegend = !showPodium;
+    legendEl.hidden = !showLegend;
+    legendEl.setAttribute('aria-hidden', showLegend ? 'false' : 'true');
+    legendEl.style.display = showLegend ? '' : 'none';
+  }
+  if (podiumEl) {
+    podiumEl.hidden = !showPodium;
+    podiumEl.setAttribute('aria-hidden', showPodium ? 'false' : 'true');
+    podiumEl.style.display = showPodium ? '' : 'none';
+  }
+  if (svgElement) {
+    svgElement.setAttribute('aria-hidden', showPodium ? 'true' : 'false');
+    if (showPodium) svgElement.innerHTML = '';
+  }
+  if (showPodium) detachInspector();
 }
 
 function getSeriesForMode(user) {
@@ -847,7 +973,7 @@ function syncRollingInputs(value) {
 
 function updateRollingControlsVisibility() {
   if (!rollingControlsEl) return;
-  const show = CHART_MODE !== 'total';
+  const show = CHART_MODE === 'mean' || CHART_MODE === 'scatter';
   rollingControlsEl.hidden = !show;
   rollingControlsEl.setAttribute('aria-hidden', show ? 'false' : 'true');
   rollingControlsEl.style.display = show ? '' : 'none';
@@ -884,7 +1010,9 @@ async function gatherAllTimeData() {
 function renderFromReport(report, source = 'fresh') {
   if (!report) return;
   $("meta-badge").textContent = `${report.dates.length} days`;
-  if (CHART_MODE === 'scatter') renderScatterChart(report);
+  syncVisualizationShell();
+  if (CHART_MODE === 'podium') renderPodium(report);
+  else if (CHART_MODE === 'scatter') renderScatterChart(report);
   else renderMetricChart(report);
   renderLegend(report.topUsers || []);
   renderTable(report.users || []);
@@ -935,9 +1063,11 @@ document.addEventListener('change', (e) => {
     const value = String(e.target.value);
     if (value === 'mean') CHART_MODE = 'mean';
     else if (value === 'scatter') CHART_MODE = 'scatter';
+    else if (value === 'podium') CHART_MODE = 'podium';
     else CHART_MODE = 'total';
     setModeURL(CHART_MODE, false);
     updateRollingControlsVisibility();
+    syncVisualizationShell();
     if (cachedReport) renderFromReport(cachedReport, 'cache');
     else loadAllTime();
   }
@@ -950,21 +1080,25 @@ document.addEventListener('change', (e) => {
     CHART_MODE = fromURL;
     const sel = document.getElementById('metric');
     if (sel) sel.value = CHART_MODE;
+  } else {
+    CHART_MODE = document.getElementById('metric')?.value || 'podium';
   }
   // Ensure URL reflects current mode without growing history
   setModeURL(CHART_MODE, true);
   updateRollingControlsVisibility();
+  syncVisualizationShell();
 })();
 
 // Handle browser back/forward to keep mode in sync
 window.addEventListener('popstate', () => {
   const fromURL = getModeFromURL();
-  const newMode = fromURL || 'total';
+  const newMode = fromURL || 'podium';
   if (newMode !== CHART_MODE) {
     CHART_MODE = newMode;
     const sel = document.getElementById('metric');
     if (sel) sel.value = CHART_MODE;
     updateRollingControlsVisibility();
+    syncVisualizationShell();
     if (cachedReport) renderFromReport(cachedReport, 'cache');
     else loadAllTime();
   }

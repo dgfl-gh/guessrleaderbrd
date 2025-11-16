@@ -18,9 +18,10 @@
           <div class="control-group">
             <label for="metric" class="label-muted">Chart</label>
             <select id="metric">
-              <option value="total" selected>Total score</option>
+              <option value="total">Total score</option>
               <option value="mean">Average score</option>
               <option value="scatter">Daily score</option>
+              <option value="podium" selected="selected">Podium</option>
             </select>
           </div>
           <div class="control-group rolling-inline" id="rolling-controls">
@@ -30,6 +31,28 @@
           </div>
         </div>
   <div class="chart-wrap"><svg id="chart" viewBox="0 0 1000 320" preserveAspectRatio="none" aria-label="Scores"></svg></div>
+  <section id="podium" class="podium" hidden aria-live="polite" aria-label="Top single-day scores">
+    <div class="podium-stage" role="list">
+      <article class="podium-slot podium-second is-empty" data-rank="2" role="listitem">
+        <div class="podium-rank">#2</div>
+        <div class="podium-user" data-field="user">TBD</div>
+        <div class="podium-score muted-text" data-field="score">Awaiting hero</div>
+        <div class="podium-date" data-field="date"></div>
+      </article>
+      <article class="podium-slot podium-first is-empty" data-rank="1" role="listitem">
+        <div class="podium-rank">#1</div>
+        <div class="podium-user" data-field="user">TBD</div>
+        <div class="podium-score muted-text" data-field="score">Awaiting hero</div>
+        <div class="podium-date" data-field="date"></div>
+      </article>
+      <article class="podium-slot podium-third is-empty" data-rank="3" role="listitem">
+        <div class="podium-rank">#3</div>
+        <div class="podium-user" data-field="user">TBD</div>
+        <div class="podium-score muted-text" data-field="score">Awaiting hero</div>
+        <div class="podium-date" data-field="date"></div>
+      </article>
+    </div>
+  </section>
   <div id="legend" class="legend"></div>
       </section>
 
