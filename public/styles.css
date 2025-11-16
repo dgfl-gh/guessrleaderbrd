@@ -396,6 +396,9 @@ footer {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: relative;
+  overflow: visible;
+  isolation: isolate;
 }
 
 .podium-stage {
@@ -404,6 +407,58 @@ footer {
   gap: 16px;
   align-items: end;
   position: relative;
+  z-index: 1;
+}
+
+.podium-searchlights {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.podium-beam {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform-origin: 50% 100%;
+  opacity: 0.85;
+  transform: translateX(-50%) rotate(0deg);
+}
+
+.podium-beam::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 90px solid transparent;
+  border-right: 90px solid transparent;
+  border-top: 720px solid rgba(255, 239, 205, 0.15);
+  filter: blur(5px);
+  mix-blend-mode: screen;
+}
+
+.podium-beam--left {
+  left: 45%;
+  animation: podium-beam-left 18s ease-in-out infinite alternate;
+}
+
+.podium-beam--right {
+  left: 55%;
+  animation: podium-beam-right 26s ease-in-out infinite alternate;
+}
+
+.podium-haze {
+  position: absolute;
+  inset: -20% 5% 0;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 253, 236, 0.15), transparent 60%);
+  mix-blend-mode: screen;
+  opacity: 0.8;
 }
 
 .podium-slot {
@@ -465,38 +520,14 @@ footer {
 
 .podium-first .podium-card {
   min-height: 210px;
-  /* box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -24px 35px rgba(0, 0, 0, 0.4),
-    0 26px 60px rgba(16, 33, 70, 0.55),
-    0 0 45px rgba(255, 255, 255, 0.25);
-  --name-glow: 0.85;
-  --glow-strength: 0.65;
-  --beam-strength: 0.6; */
 }
 
 .podium-second .podium-card {
   min-height: 180px;
-  /* box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 -22px 30px rgba(0, 0, 0, 0.35),
-    0 22px 50px rgba(10, 18, 32, 0.55),
-    0 0 35px rgba(255, 255, 255, 0.18);
-  --name-glow: 0.55;
-  --glow-strength: 0.48;
-  --beam-strength: 0.4; */
 }
 
 .podium-third .podium-card {
   min-height: 160px;
-  /* box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 -18px 26px rgba(0, 0, 0, 0.3),
-    0 18px 40px rgba(5, 8, 12, 0.55),
-    0 0 24px rgba(255, 255, 255, 0.12);
-  --name-glow: 0.35;
-  --glow-strength: 0.36;
-  --beam-strength: 0.25; */
 }
 
 .podium-rank {
@@ -515,21 +546,6 @@ footer {
   position: relative;
   z-index: 2;
 }
-
-/* .podium-user::after {
-  content: '';
-  position: absolute;
-  top: 60%;
-  left: 50%;
-  width: 170%;
-  height: 420%;
-  transform: translate(-50%, -15%) skewX(-5deg);
-  background: linear-gradient(180deg, rgba(255, 238, 192, calc(var(--beam-strength) + 0.15)), rgba(255, 238, 192, 0));
-  filter: blur(1.5px);
-  opacity: calc(var(--beam-strength) + 0.15);
-  pointer-events: none;
-  z-index: -1;
-} */
 
 .podium-score {
   font-size: 30px;
@@ -584,5 +600,43 @@ footer {
 @media (max-width: 540px) {
   .podium-stage {
     grid-template-columns: 1fr;
+  }
+}
+
+@keyframes podium-beam-left {
+  0% {
+    transform: translateX(-56%) rotate(-18deg) scaleY(0.85);
+    opacity: 0.5;
+  }
+  35% {
+    transform: translateX(-50%) rotate(-6deg) scaleY(1);
+    opacity: 0.9;
+  }
+  70% {
+    transform: translateX(-58%) rotate(-42deg) scaleY(0.95);
+    opacity: 0.65;
+  }
+  100% {
+    transform: translateX(-52%) rotate(-4deg) scaleY(1.05);
+    opacity: 0.85;
+  }
+}
+
+@keyframes podium-beam-right {
+  0% {
+    transform: translateX(-44%) rotate(24deg) scaleY(0.9);
+    opacity: 0.55;
+  }
+  30% {
+    transform: translateX(-48%) rotate(4deg) scaleY(1.05);
+    opacity: 0.95;
+  }
+  65% {
+    transform: translateX(-42%) rotate(36deg) scaleY(0.92);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateX(-46%) rotate(2deg) scaleY(1.08);
+    opacity: 0.88;
   }
 }
