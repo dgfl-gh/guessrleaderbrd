@@ -14,7 +14,11 @@
   .day .num { color:#cbd4e1; font-weight:700; font-size:12px; }
   .day .meta { position:absolute; right:8px; bottom:6px; color:#e6e9ef; font-size:11px; text-shadow:0 1px 0 rgba(0,0,0,.35); }
   .day.inactive { opacity:.4; cursor:default; }
-  .day.empty { background:#0f1117; }
+  .day.blank { opacity:.15; cursor:default; }
+  .heatmap-container { margin-bottom:24px; }
+  .heatmap-title-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .heatmap-title-row strong { color:var(--fg); font-size:11px; }
+  #heatmap-chart svg { width:100%; height:auto; display:block; }
   </style>
   <script type="module" src="/calendar.js"></script>
 </head>
@@ -31,7 +35,14 @@
 
     <main>
       <section class="card">
-        <div id="status" class="status">Loading…</div>
+        <div id="status" class="status" hidden></div>
+        <div id="heatmap-section" class="heatmap-container" hidden>
+          <div class="heatmap-title-row">
+            <strong>Daily activity</strong>
+            <span id="heatmap-caption"></span>
+          </div>
+          <div id="heatmap-chart"></div>
+        </div>
         <div class="cal" id="calendar"></div>
         <div id="legend" class="legend"></div>
       </section>

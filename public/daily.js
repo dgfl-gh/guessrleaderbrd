@@ -205,22 +205,22 @@ async function load(bust=false) {
     if (!rows.length) {
       $("empty").hidden = false;
       setStatus("No rows.");
-      return;
-    }
-    $("empty").hidden = true;
-    const frag = document.createDocumentFragment();
-    for (const r of rows) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
+    } else {
+      $("empty").hidden = true;
+      const frag = document.createDocumentFragment();
+      for (const r of rows) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
         <td class="rank">${r.rank}</td>
         <td class="username">${escapeHtml(r.username)}</td>
         <td class="score">${r.score.toLocaleString("en-US")}</td>
       `;
-      frag.appendChild(tr);
+        frag.appendChild(tr);
+      }
+      tbody.appendChild(frag);
+      setStatus(`Loaded ${rows.length} entries`);
     }
-    tbody.appendChild(frag);
-    setStatus(`Loaded ${rows.length} entries`);
-    // Render map for past days
+    // Render map for past days (even if no leaderboard rows)
     await tryRenderMap();
   } catch (e) {
     $("tbody").innerHTML = "";
