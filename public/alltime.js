@@ -1,14 +1,20 @@
 import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
 import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap } from './utils.js';
 
-const MAX_USERS = 8; // Show top N lines
+const MAX_USERS = 10; // Show top N lines
+const FETCH_CONCURRENCY = 12;
 let CHART_MODE = 'total'; // 'total' | 'mean'
 const ROLLING_MIN = 1;
-const ROLLING_MAX = 60;
+const ROLLING_MAX = 31;
 let rollingWindow = 7;
 let cachedReport = null;
 let reportPromise = null;
 let tableSort = { key: 'total', direction: 'desc' };
+const disabledUsers = new Set();
+let highlightedUser = null;
+let chartInspector = null;
+const bisectDate = d3.bisector((d) => d).center;
+const dateFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 function getModeFromURL() {
   const m = new URLSearchParams(location.search).get('mode');
@@ -60,15 +66,71 @@ function lightenColor(colorStr) {
   return c.brighter(0.6).formatRgb();
 }
 
+function formatScore(value, mode = 'total') {
+  if (value == null || Number.isNaN(value)) return null;
+  if (mode === 'mean') return value.toFixed(1);
+  if (mode === 'scatter') return value.toLocaleString('en-US');
+  if (Number.isInteger(value)) return value.toLocaleString('en-US');
+  return value.toLocaleString('en-US', { maximumFractionDigits: 1 });
+}
+
+function formatDateLabel(dateObj) {
+  if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return '';
+  return dateFormatter.format(dateObj);
+}
+
+function ensureTooltip(container) {
+  if (!container) return null;
+  let el = container.querySelector('.chart-tooltip');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'chart-tooltip';
+    container.appendChild(el);
+  }
+  return el;
+}
+
+function positionTooltip(tooltip, container, event) {
+  if (!tooltip || !container || !event) return;
+  const rect = container.getBoundingClientRect();
+  const { clientX, clientY } = event;
+  let left = clientX - rect.left + 12;
+  let top = clientY - rect.top - 12;
+  requestAnimationFrame(() => {
+    const w = tooltip.offsetWidth || 0;
+    const h = tooltip.offsetHeight || 0;
+    left = Math.min(Math.max(8, left), Math.max(8, rect.width - w - 8));
+    top = Math.min(Math.max(8, top), Math.max(8, rect.height - h - 8));
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  });
+}
+
+function hideTooltipElement(tooltip) {
+  if (tooltip) tooltip.classList.remove('visible');
+}
+
+function detachInspector() {
+  if (chartInspector?.svg) {
+    d3.select(chartInspector.svg).on('.inspector', null);
+  }
+  if (chartInspector?.tooltip) hideTooltipElement(chartInspector.tooltip);
+  chartInspector = null;
+}
+
 function renderMetricChart(report) {
   if (CHART_MODE === 'scatter') return;
   const svgElement = $("chart");
-  if (!svgElement) return;
+  if (!svgElement) {
+    detachInspector();
+    return;
+  }
 
   const dates = report.dates;
   const svg = d3.select(svgElement);
   if (!dates.length) {
     svg.selectAll('*').remove();
+    detachInspector();
     return;
   }
   const dateObjs = dates.map((d) => new Date(`${d}T00:00:00Z`));
@@ -85,7 +147,7 @@ function renderMetricChart(report) {
     .domain(d3.extent(dateObjs))
     .range([0, innerWidth]);
 
-  const topUsers = report.topUsers || [];
+  const topUsers = getVisibleTopUsers(report.topUsers || []);
   const baseSeries = topUsers.map((user) => ({
     user,
     values: getSeriesForMode(user)
@@ -95,6 +157,7 @@ function renderMetricChart(report) {
     user,
     points: getRollingSeries(user, rollingWindow)
   })) : [];
+  const rollingMap = new Map(rollingSeries.map((entry) => [entry.user.username, entry.points]));
 
   const allValues = baseSeries
     .flatMap((s) => s.values)
@@ -132,45 +195,71 @@ function renderMetricChart(report) {
   gx.select('.domain').attr('stroke', '#2a2f3a');
   gx.selectAll('text').attr('fill', 'var(--muted)').attr('font-size', '11px').attr('dy', '0.9em');
 
-  for (const series of baseSeries) {
-    root.append('path')
-      .datum(series.values)
+  const seriesLayer = root.append('g').attr('class', 'series-layer metric-series');
+  topUsers.forEach((user, idx) => {
+    const group = seriesLayer.append('g')
+      .attr('class', 'chart-series')
+      .attr('data-username', user.username);
+
+    group.append('path')
+      .datum(baseSeries[idx].values)
+      .attr('class', 'series-line base-line')
       .attr('fill', 'none')
-      .attr('stroke', series.user.color)
+      .attr('stroke', user.color)
       .attr('stroke-width', 2)
       .attr('stroke-linejoin', 'round')
       .attr('stroke-linecap', 'round')
       .attr('d', lineGenerator);
-  }
 
-  if (showRolling) {
-    for (const series of rollingSeries) {
-      if (!series.points.length) continue;
-      root.append('path')
-        .datum(series.points)
-        .attr('fill', 'none')
-        .attr('stroke', lightenColor(series.user.color))
-        .attr('stroke-width', 1.5)
-        .attr('stroke-dasharray', '5 4')
-        .attr('opacity', 0.95)
-        .attr('stroke-linejoin', 'round')
-        .attr('stroke-linecap', 'round')
-        .attr('d', rollingLine);
+    if (showRolling) {
+      const rollPoints = rollingMap.get(user.username) || [];
+      if (rollPoints.length) {
+        group.append('path')
+          .datum(rollPoints)
+          .attr('class', 'series-line rolling-line')
+          .attr('fill', 'none')
+          .attr('stroke', lightenColor(user.color))
+          .attr('stroke-width', 1.5)
+          .attr('stroke-dasharray', '5 4')
+          .attr('opacity', 0.95)
+          .attr('stroke-linejoin', 'round')
+          .attr('stroke-linecap', 'round')
+          .attr('d', rollingLine);
+      }
     }
-  }
+  });
+
+  setupInspector({
+    mode: CHART_MODE,
+    svg: svgElement,
+    root,
+    margin,
+    innerWidth,
+    innerHeight,
+    dateObjs,
+    dates,
+    xScale: x,
+    yScale: y,
+    users: topUsers
+  });
 }
 
 function renderScatterChart(report) {
   const svgElement = $("chart");
-  if (!svgElement) return;
+  if (!svgElement) {
+    detachInspector();
+    return;
+  }
   const svg = d3.select(svgElement);
   if (CHART_MODE !== 'scatter') {
     svg.selectAll('*').remove();
+    detachInspector();
     return;
   }
   const dates = report.dates;
   if (!dates.length) {
     svg.selectAll('*').remove();
+    detachInspector();
     return;
   }
   const dateObjs = dates.map((d) => new Date(`${d}T00:00:00Z`));
@@ -187,22 +276,23 @@ function renderScatterChart(report) {
     .domain(d3.extent(dateObjs))
     .range([0, innerWidth]);
 
-  const topUsers = report.topUsers || [];
+  const topUsers = getVisibleTopUsers(report.topUsers || []);
   const rollingSeries = topUsers.map((user) => ({
     user,
     points: getRollingSeries(user, rollingWindow)
   }));
-  const points = [];
-  topUsers.forEach((user) => {
-    (user.dailyScores || []).forEach((value, idx) => {
-      if (value == null) return;
-      points.push({ user, value, index: idx, date: dateObjs[idx] });
-    });
-  });
+  const pointsByUser = topUsers.map((user) => ({
+    user,
+    points: (user.dailyScores || []).map((value, idx) => {
+      if (value == null) return null;
+      return { user, value, index: idx, date: dateObjs[idx], dateStr: dates[idx] };
+    }).filter(Boolean)
+  }));
 
+  const allPoints = pointsByUser.flatMap((entry) => entry.points);
   const rollingValues = rollingSeries.flatMap((s) => s.points.map((p) => p.value));
   const yCandidates = [];
-  if (points.length) yCandidates.push(d3.max(points, (p) => p.value));
+  if (allPoints.length) yCandidates.push(d3.max(allPoints, (p) => p.value));
   if (rollingValues.length) yCandidates.push(d3.max(rollingValues));
   const maxY = Math.max(1, yCandidates.length ? d3.max(yCandidates) : 1);
 
@@ -231,23 +321,37 @@ function renderScatterChart(report) {
   gx.select('.domain').attr('stroke', '#2a2f3a');
   gx.selectAll('text').attr('fill', 'var(--muted)').attr('font-size', '11px').attr('dy', '0.9em');
 
-  root.append('g')
-    .attr('class', 'points')
-    .selectAll('circle')
-    .data(points)
-    .join('circle')
-    .attr('cx', (d) => x(d.date))
-    .attr('cy', (d) => y(d.value))
-    .attr('r', 3)
-    .attr('fill', (d) => d.user.color)
-    .attr('fill-opacity', 0.85)
-    .attr('stroke', 'rgba(0,0,0,0.45)')
-    .attr('stroke-width', 0.5);
+  const seriesLayer = new Map();
+  const scatterRoot = root.append('g').attr('class', 'series-layer scatter-series');
+  pointsByUser.forEach((entry) => {
+    const group = scatterRoot.append('g')
+      .attr('class', 'chart-series')
+      .attr('data-username', entry.user.username);
+    seriesLayer.set(entry.user.username, group);
+
+    group.append('g')
+      .attr('class', 'points')
+      .selectAll('circle')
+      .data(entry.points)
+      .join('circle')
+      .attr('cx', (d) => x(d.date))
+      .attr('cy', (d) => y(d.value))
+      .attr('r', 3)
+      .attr('fill', entry.user.color)
+      .attr('fill-opacity', 0.85)
+      .attr('stroke', 'rgba(0,0,0,0.45)')
+      .attr('stroke-width', 0.5)
+      .style('cursor', 'pointer');
+  });
 
   for (const series of rollingSeries) {
     if (!series.points.length) continue;
-    root.append('path')
+    const group = seriesLayer.get(series.user.username) || scatterRoot.append('g')
+      .attr('class', 'chart-series')
+      .attr('data-username', series.user.username);
+    group.append('path')
       .datum(series.points)
+      .attr('class', 'series-line rolling-line')
       .attr('fill', 'none')
       .attr('stroke', lightenColor(series.user.color))
       .attr('stroke-width', 1.8)
@@ -257,6 +361,20 @@ function renderScatterChart(report) {
       .attr('stroke-linecap', 'round')
       .attr('d', rollingLine);
   }
+
+  setupInspector({
+    mode: 'scatter',
+    svg: svgElement,
+    root,
+    margin,
+    innerWidth,
+    innerHeight,
+    dateObjs,
+    dates,
+    xScale: x,
+    yScale: y,
+    users: topUsers
+  });
 }
 
 function getSeriesForMode(user) {
@@ -328,15 +446,258 @@ function hydrateUserSeries(user, dates) {
   user.rollingCache = new Map();
 }
 
+function setupInspector(config) {
+  if (!config || !config.users || !config.users.length) {
+    detachInspector();
+    return;
+  }
+  if (chartInspector?.svg) {
+    d3.select(chartInspector.svg).on('.inspector', null);
+  }
+  const svgSelection = d3.select(config.svg);
+  svgSelection.on('.inspector', null);
+  const wrap = config.svg.closest('.chart-wrap');
+  chartInspector = {
+    ...config,
+    wrap,
+    tooltip: ensureTooltip(wrap)
+  };
+  const layer = config.root.append('g')
+    .attr('class', 'inspector-layer')
+    .attr('pointer-events', 'none');
+  chartInspector.layer = layer;
+  chartInspector.line = layer.append('line')
+    .attr('class', 'inspector-line')
+    .attr('y1', 0)
+    .attr('y2', config.innerHeight)
+    .attr('opacity', 0);
+  chartInspector.dots = layer.append('g')
+    .attr('class', 'inspector-dots')
+    .selectAll('circle')
+    .data(config.users, (d) => d.username)
+    .join('circle')
+    .attr('class', 'inspector-dot')
+    .attr('r', 4)
+    .attr('fill', (d) => d.color)
+    .attr('opacity', 0);
+
+  svgSelection.on('pointermove.inspector', (event) => handleInspectorMove(event));
+  svgSelection.on('pointerleave.inspector', () => hideInspector());
+  svgSelection.on('click.inspector', (event) => handleInspectorClick(event));
+  hideInspector();
+  raiseInspectorLayer();
+}
+
+function raiseInspectorLayer() {
+  if (chartInspector?.layer && typeof chartInspector.layer.raise === 'function') {
+    chartInspector.layer.raise();
+  }
+}
+
+function handleInspectorMove(event) {
+  if (!chartInspector || !chartInspector.users.length) return;
+  const { svg, margin, innerWidth, innerHeight, dateObjs, xScale, yScale, users, mode } = chartInspector;
+  const [px, py] = d3.pointer(event, svg);
+  const mx = px - margin.left;
+  const my = py - margin.top;
+  if (mx < 0 || mx > innerWidth || my < 0 || my > innerHeight) {
+    hideInspector();
+    return;
+  }
+  const date = xScale.invert(mx);
+  const idx = Math.min(Math.max(0, bisectDate(dateObjs, date)), dateObjs.length - 1);
+  const xPos = xScale(dateObjs[idx]);
+  chartInspector.currentIndex = idx;
+  chartInspector.currentDate = dateObjs[idx];
+  chartInspector.currentDateStr = chartInspector.dates?.[idx] || null;
+  chartInspector.line
+    .attr('x1', xPos)
+    .attr('x2', xPos)
+    .attr('opacity', 1);
+
+  chartInspector.dots.each(function(user) {
+    const value = getInspectorValue(user, idx, mode);
+    const circle = d3.select(this);
+    if (value == null) {
+      circle.attr('opacity', 0);
+      return;
+    }
+    circle
+      .attr('cx', xPos)
+      .attr('cy', yScale(value))
+      .attr('opacity', 1);
+  });
+
+  const tooltip = chartInspector.tooltip;
+  if (tooltip) {
+    const dateLabel = formatDateLabel(dateObjs[idx]);
+    const rows = users.map((user) => {
+      const value = getInspectorValue(user, idx, mode);
+      if (value == null) return null;
+      return {
+        username: user.username,
+        color: user.color,
+        value: formatScore(value, mode)
+      };
+    }).filter(Boolean);
+    let html = `<div class="tooltip-date">${dateLabel}</div>`;
+    if (rows.length) {
+      html += rows.map((row) => `
+        <div class="tooltip-row">
+          <span class="tooltip-name">
+            <span class="tooltip-swatch" style="background:${row.color}"></span>${row.username}
+          </span>
+          <span class="tooltip-value">${row.value}</span>
+        </div>
+      `).join('');
+    } else {
+      html += '<div class="tooltip-empty">No scores</div>';
+    }
+    tooltip.innerHTML = html;
+    tooltip.classList.add('visible');
+    positionTooltip(tooltip, chartInspector.wrap, event);
+  }
+  chartInspector.tooltipVisible = true;
+}
+
+function hideInspector() {
+  if (!chartInspector) return;
+  if (chartInspector.line) chartInspector.line.attr('opacity', 0);
+  if (chartInspector.dots) chartInspector.dots.attr('opacity', 0);
+  hideTooltipElement(chartInspector.tooltip);
+  chartInspector.currentIndex = null;
+  chartInspector.currentDate = null;
+  chartInspector.currentDateStr = null;
+  chartInspector.tooltipVisible = false;
+}
+
+function getInspectorValue(user, idx, mode) {
+  if (!user) return null;
+  if (mode === 'mean') return user.meanSeries?.[idx] ?? null;
+  if (mode === 'scatter') return user.dailyScores?.[idx] ?? null;
+  return user.cumulative?.[idx] ?? null;
+}
+
+function handleInspectorClick(event) {
+  if (!chartInspector || !chartInspector.tooltipVisible || !chartInspector.currentDateStr) return;
+  if (event && event.button !== undefined && event.button !== 0) return;
+  const url = `/daily?date=${encodeURIComponent(chartInspector.currentDateStr)}`;
+  if (event && (event.metaKey || event.ctrlKey)) {
+    window.open(url, '_blank');
+  } else {
+    location.href = url;
+  }
+}
+
+function getVisibleTopUsers(users = []) {
+  return users.filter((user) => !disabledUsers.has(user.username));
+}
+
+function pruneLegendState(users = []) {
+  const available = new Set(users.map((u) => u.username));
+  Array.from(disabledUsers).forEach((username) => {
+    if (!available.has(username)) disabledUsers.delete(username);
+  });
+  if (highlightedUser && !available.has(highlightedUser)) {
+    highlightedUser = null;
+  }
+}
+
+function setHighlightedUser(username) {
+  const next = username && disabledUsers.has(username) ? null : (username || null);
+  if (highlightedUser === next) return;
+  highlightedUser = next;
+  syncLegendState();
+  syncSeriesHighlight();
+}
+
+function syncLegendState() {
+  const items = document.querySelectorAll('.legend-item[data-username]');
+  const hasHighlight = Boolean(highlightedUser);
+  items.forEach((item) => {
+    const username = item.dataset.username;
+    const disabled = disabledUsers.has(username);
+    const highlighted = hasHighlight && highlightedUser === username;
+    item.classList.toggle('is-disabled', disabled);
+    item.classList.toggle('is-highlighted', highlighted);
+    item.setAttribute('aria-pressed', disabled ? 'false' : 'true');
+    item.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+  });
+}
+
+function syncSeriesHighlight() {
+  const svgElement = $("chart");
+  if (!svgElement) return;
+  const series = svgElement.querySelectorAll('.chart-series');
+  const hasHighlight = Boolean(highlightedUser);
+  series.forEach((node) => {
+    const isMatch = hasHighlight && node.dataset.username === highlightedUser;
+    node.classList.toggle('is-highlighted', isMatch);
+    if (isMatch && node.parentNode) {
+      node.parentNode.appendChild(node);
+    }
+  });
+  raiseInspectorLayer();
+}
+
+function handleLegendHover(username) {
+  if (!username || disabledUsers.has(username)) return;
+  setHighlightedUser(username);
+}
+
+function handleLegendLeave(username) {
+  if (highlightedUser !== username) return;
+  setHighlightedUser(null);
+}
+
+function handleLegendToggle(username) {
+  if (!username) return;
+  if (disabledUsers.has(username)) {
+    disabledUsers.delete(username);
+  } else {
+    disabledUsers.add(username);
+    if (highlightedUser === username) highlightedUser = null;
+  }
+  if (cachedReport) renderFromReport(cachedReport, 'cache');
+  else {
+    syncLegendState();
+    syncSeriesHighlight();
+  }
+}
+
+function bindLegendInteractions(el, username) {
+  el.addEventListener('mouseenter', () => handleLegendHover(username));
+  el.addEventListener('mouseleave', () => handleLegendLeave(username));
+  el.addEventListener('focus', () => handleLegendHover(username));
+  el.addEventListener('blur', () => handleLegendLeave(username));
+  el.addEventListener('click', () => handleLegendToggle(username));
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleLegendToggle(username);
+    }
+  });
+}
+
 function renderLegend(users) {
   const legend = $("legend");
+  if (!legend) return;
   legend.innerHTML = '';
+  pruneLegendState(users);
+  legend.setAttribute('role', 'group');
+  const frag = document.createDocumentFragment();
   for (const u of users) {
     const el = document.createElement('div');
     el.className = 'legend-item';
-    el.innerHTML = `<span class=\"swatch\" style=\"background:${u.color}\"></span><span>${u.username}</span>`;
-    legend.appendChild(el);
+    el.dataset.username = u.username;
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.innerHTML = `<span class="swatch" style="background:${u.color}"></span><span>${u.username}</span>`;
+    bindLegendInteractions(el, u.username);
+    frag.appendChild(el);
   }
+  legend.appendChild(frag);
+  syncLegendState();
 }
 
 function renderTable(users) {
@@ -479,15 +840,40 @@ async function gatherAllTimeData(onProgress = () => {}) {
   if (!dates.length) return { dates: [], users: [], topUsers: [] };
 
   const byUser = new Map();
-  const batch = 6;
-  const allRowsByDate = [];
-  for (let i=0; i<dates.length; i+=batch) {
-    onProgress(`Loading days ${Math.min(i+1,dates.length)}-${Math.min(i+batch,dates.length)} of ${dates.length}…`);
-    const part = dates.slice(i, i+batch).map(d => fetchDay(d).then(rows => ({date:d, rows})));
-    const res = await Promise.all(part);
-    allRowsByDate.push(...res);
+  const totalDays = dates.length;
+  const maxWorkers = Math.min(FETCH_CONCURRENCY, totalDays);
+  onProgress(`Fetching ${totalDays} days with up to ${maxWorkers} parallel requests…`);
+  const results = new Array(totalDays);
+  let completed = 0;
+  let nextIndex = 0;
+  const getNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const startAll = getNow();
+
+  async function worker() {
+    while (true) {
+      const current = nextIndex;
+      if (current >= totalDays) break;
+      nextIndex++;
+      const date = dates[current];
+      const started = getNow();
+      let rows;
+      try {
+        rows = await fetchDay(date);
+      } catch (err) {
+        console.error('Error loading day', date, err);
+        rows = [];
+      }
+      results[current] = { date, rows };
+      completed++;
+      const perDay = ((getNow() - started) / 1000).toFixed(1);
+      const elapsed = ((getNow() - startAll) / 1000).toFixed(1);
+      onProgress(`Loaded day ${completed}/${totalDays} (${date}) in ${perDay}s — elapsed ${elapsed}s`);
+    }
   }
-  allRowsByDate.sort((a,b)=> a.date.localeCompare(b.date));
+
+  const workers = Array.from({ length: maxWorkers }, () => worker());
+  await Promise.all(workers);
+  const allRowsByDate = results.filter(Boolean);
 
   for (const {date, rows} of allRowsByDate) {
     for (const r of rows) {
@@ -522,6 +908,7 @@ function renderFromReport(report, source = 'fresh') {
   else renderMetricChart(report);
   renderLegend(report.topUsers || []);
   renderTable(report.users || []);
+  syncSeriesHighlight();
   if (!report.dates.length) setStatus('No dates found.');
   else {
     const suffix = source === 'cache' ? ' (cached)' : '';
