@@ -1,3 +1,5 @@
+import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
+
 // Shared utilities for Guessr Leaderboard frontend
 export const BASE_DATA = "/data";
 export const TZ = "Europe/Rome";
@@ -38,21 +40,47 @@ export function normalizeRows(data) {
   return rows;
 }
 
-// Stable color per user name using HSL
-// Distinct, accessible colors (6 users max). Tweak as desired.
-const PALETTE = [
-  '#e76f51', // persimmon
-  '#2a9d8f', // teal
-  '#e9c46a', // sand
-  '#f4a261', // orange
-  '#457b9d', // blue
-  '#a78bfa', // lavender
-];
+const BASE_PALETTE = (d3.schemeTableau10 || [
+  '#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
+  '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ac'
+]).map((color) => {
+  const c = d3.color(color);
+  return c ? c.formatHex() : '#888888';
+});
+
+const DEFAULT_COLOR = BASE_PALETTE[0] || '#888888';
+const colorAssignments = new Map();
+
+function normalizeName(name) {
+  return (name || '').trim().toLowerCase();
+}
+
+async function loadUserOrder() {
+  try {
+    const data = await fetchJSON(`${BASE_DATA}/users.json`);
+    if (Array.isArray(data)) return data.map(normalizeName).filter(Boolean);
+  } catch {}
+  return [];
+}
+
+const canonicalUserOrder = await loadUserOrder();
+const canonicalColorMap = new Map();
+canonicalUserOrder.forEach((name, idx) => {
+  if (!canonicalColorMap.has(name)) {
+    const color = BASE_PALETTE[idx % BASE_PALETTE.length] || DEFAULT_COLOR;
+    canonicalColorMap.set(name, color);
+  }
+});
 
 export function colorForName(name) {
-  let h = 0;
-  for (let i=0; i<name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return PALETTE[h % PALETTE.length];
+  const key = normalizeName(name);
+  if (!key) return DEFAULT_COLOR;
+  if (colorAssignments.has(key)) return colorAssignments.get(key);
+
+  const color = canonicalColorMap.get(key) || DEFAULT_COLOR;
+
+  colorAssignments.set(key, color);
+  return color;
 }
 
 export function getQueryParam(name) {
@@ -60,13 +88,12 @@ export function getQueryParam(name) {
   return m && typeof m === "string" ? m : null;
 }
 
-// Build a stable, collision-free color map for a given user set.
+// Build a stable color map that keeps colors consistent per user across views.
 export function buildColorMap(names) {
-  const uniq = Array.from(new Set(names.filter(Boolean)));
-  uniq.sort((a,b)=>a.localeCompare(b));
   const map = new Map();
-  for (let i=0; i<uniq.length; i++) {
-    map.set(uniq[i], PALETTE[i % PALETTE.length]);
+  for (const name of names) {
+    if (!name || map.has(name)) continue;
+    map.set(name, colorForName(name));
   }
   return map;
 }

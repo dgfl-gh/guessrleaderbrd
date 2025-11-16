@@ -15,21 +15,35 @@
     <main class="grid">
       <section class="card">
         <div id="status" class="status">Loading totals…</div>
-        <div class="controls" style="margin: 0 0 8px 0; gap:6px;">
-          <label for="metric" style="color:var(--muted); font-size:12px;">Chart:</label>
-          <select id="metric">
-            <option value="total" selected>Total score</option>
-            <option value="mean">Average score</option>
-          </select>
+        <div class="controls controls-chart">
+          <div class="control-group">
+            <label for="metric" class="label-muted">Chart</label>
+            <select id="metric">
+              <option value="total" selected>Total score</option>
+              <option value="mean">Average score</option>
+              <option value="scatter">Daily score</option>
+            </select>
+          </div>
+          <div class="control-group rolling-inline" id="rolling-controls">
+            <label for="rolling-window" class="label-muted">Rolling avg</label>
+            <input id="rolling-window" type="range" min="1" max="31" value="7" step="1" aria-label="Rolling average window in days" />
+            <span id="rolling-window-value" class="muted-text">7 days</span>
+          </div>
         </div>
-        <div class="chart-wrap"><svg id="chart" viewBox="0 0 1000 320" preserveAspectRatio="none" aria-label="Scores over time"></svg></div>
-        <div id="legend" class="legend"></div>
+  <div class="chart-wrap"><svg id="chart" viewBox="0 0 1000 320" preserveAspectRatio="none" aria-label="Scores"></svg></div>
+  <div id="legend" class="legend"></div>
       </section>
 
       <section class="card">
         <table aria-label="All-time leaderboard">
           <thead>
-            <tr><th class="rank">#</th><th>User</th><th class="score">Total</th><th class="score">Days</th><th class="score">Average</th></tr>
+            <tr>
+              <th class="rank sortable" data-sort="rank" scope="col" role="button" tabindex="0">#</th>
+              <th class="sortable" data-sort="username" scope="col" role="button" tabindex="0">User</th>
+              <th class="score sortable" data-sort="total" scope="col" role="button" tabindex="0">Total</th>
+              <th class="score sortable" data-sort="days" scope="col" role="button" tabindex="0">Days</th>
+              <th class="score sortable" data-sort="average" scope="col" role="button" tabindex="0">Average</th>
+            </tr>
           </thead>
           <tbody id="tbody"></tbody>
         </table>
