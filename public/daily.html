@@ -1,152 +1,245 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>EMN TimeGuessr Leaderboard</title>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>EMN TimeGuessr Leaderboard</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/styles.css" />
-        <!-- Leaflet CSS -->
-        <link
-            rel="stylesheet"
-            href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-            integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-            crossorigin=""
-        />
-        <style>
-            /* Map styles */
-            .map-card {
-                margin-top: 12px;
-            }
-            .map-header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                margin-bottom: 8px;
-                color: var(--muted);
-                font-size: 12px;
-            }
-            .map-container {
-                position: relative;
-                width: 100%;
-                height: 630px;
-                background: #0f1117;
-                border: 1px solid var(--border);
-                border-radius: 12px;
-                overflow: hidden;
-            }
-            .map-gate {
-                flex-direction: column;
-                align-items: center;
-                gap: 12px;
-                padding: 24px;
-                text-align: center;
-                color: var(--muted);
-            }
-            .map-gate button {
-                min-width: 160px;
-            }
-            .map-gate-question {
-                font-weight: 600;
-                color: var(--fg);
-            }
-            .map-gate-actions {
-                display: flex;
-                gap: 8px;
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-            /* Leaflet popup tweaks for theme */
-            .leaflet-container {
-                background: #0b0c10;
-                color: var(--fg);
-                font: inherit;
-            }
-            .leaflet-popup-content-wrapper {
-                background: var(--card);
-                color: var(--fg);
-                border: 1px solid var(--border);
-                border-radius: 12px;
-            }
-            .leaflet-popup-content {
-                margin: 10px 12px;
-            }
-            .leaflet-popup-tip {
-                background: var(--card);
-            }
-            .leaflet-control-attribution {
-                background: rgba(0, 0, 0, 0.35);
-                color: #cbd4e1;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div id="site-header"></div>
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.17.0-beta.1/mapbox-gl.css"
+        crossorigin="anonymous" />
+    <style>
+        /* Map styles */
+        .map-card {
+            margin-top: 12px;
+        }
 
-            <section class="controls">
-                <button id="prev">◀ Prev</button>
-                <input id="date" type="date" />
-                <button id="next">Next ▶</button>
-                <button id="reload">Reload</button>
+        .map-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .map-container {
+            position: relative;
+            width: 100%;
+            height: 630px;
+            background: #0f1117;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        #map {
+            position: relative;
+            width: 100%;
+            min-height: 600px;
+            height: 630px;
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 5;
+            align-items: flex-start;
+        }
+
+        .map-button {
+            appearance: none;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(5, 6, 10, 0.85);
+            color: var(--fg);
+            font-size: 12px;
+            letter-spacing: 0.03em;
+            padding: 6px 12px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .map-button:hover {
+            background: rgba(19, 21, 28, 0.9);
+        }
+
+        .layer-toggle {
+            display: inline-flex;
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(5, 6, 10, 0.85);
+        }
+
+        .layer-toggle button {
+            border: none;
+            border-right: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 0;
+            background: transparent;
+            font-weight: 600;
+        }
+
+        .layer-toggle button:last-child {
+            border-right: none;
+        }
+
+        .layer-toggle button.active {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .map-gate {
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 24px;
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .map-gate button {
+            min-width: 160px;
+        }
+
+        .map-gate-question {
+            font-weight: 600;
+            color: var(--fg);
+        }
+
+        .map-gate-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .mapboxgl-popup-content {
+            background: var(--card);
+            color: var(--fg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0;
+        }
+
+        .mapboxgl-popup-content .map-popup-inner {
+            padding: 12px 14px 14px;
+        }
+
+        .mapboxgl-popup-tip {
+            border-top-color: var(--card);
+        }
+
+        .photo-marker {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1f2937, #0f172a);
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            color: #fff;
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 14px rgba(0, 0, 0, 0.45);
+        }
+
+        .photo-marker::after {
+            content: "";
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid rgba(255, 255, 255, 0.9);
+            bottom: -8px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            .map-button,
+            .map-controls {
+                transition: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="site-header"></div>
+
+        <section class="controls">
+            <button id="prev">◀ Prev</button>
+            <input id="date" type="date" />
+            <button id="next">Next ▶</button>
+            <button id="reload">Reload</button>
+        </section>
+
+        <main>
+            <section class="card">
+                <div id="status" class="status">Loading…</div>
+                <table aria-label="Friends leaderboard">
+                    <thead>
+                        <tr>
+                            <th class="rank">#</th>
+                            <th>User</th>
+                            <th class="score">Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+                <div id="empty" class="empty" hidden>No data.</div>
             </section>
 
-            <main>
-                <section class="card">
-                    <div id="status" class="status">Loading…</div>
-                    <table aria-label="Friends leaderboard">
-                        <thead>
-                            <tr>
-                                <th class="rank">#</th>
-                                <th>User</th>
-                                <th class="score">Score</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody"></tbody>
-                    </table>
-                    <div id="empty" class="empty" hidden>No data.</div>
-                </section>
+            <footer>
+                <div>
+                    Tip: use <span class="kbd">←</span>/<span class="kbd">→</span>
+                    to change day.
+                </div>
+            </footer>
 
-                <footer>
-                    <div>
-                        Tip: use <span class="kbd">←</span>/<span class="kbd"
-                            >→</span
-                        >
-                        to change day.
-                    </div>
-                </footer>
-
-                <!-- World map of daily photos -->
-                <section id="map-card" class="card map-card" hidden>
-                    <div class="map-header">
-                        <span>Photo locations</span
-                        ><span id="map-status"></span>
-                    </div>
-                    <div id="map-gate" class="map-gate" hidden>
-                        <button id="map-gate-open" type="button">view today's game?</button>
-                        <div id="map-gate-confirm" hidden>
-                            <div class="map-gate-question">Are you sure?</div>
-                            <div class="map-gate-actions">
-                                <button id="map-gate-yes" type="button">Yes, show it</button>
-                                <button id="map-gate-no" type="button">Cancel</button>
-                            </div>
+            <!-- World map of daily photos -->
+            <section id="map-card" class="card map-card" hidden>
+                <div class="map-header">
+                    <span>Photo locations</span><span id="map-status"></span>
+                </div>
+                <div id="map-gate" class="map-gate" hidden>
+                    <button id="map-gate-open" type="button">view today's game?</button>
+                    <div id="map-gate-confirm" hidden>
+                        <div class="map-gate-question">Are you sure?</div>
+                        <div class="map-gate-actions">
+                            <button id="map-gate-yes" type="button">Yes, show it</button>
+                            <button id="map-gate-no" type="button">Cancel</button>
                         </div>
                     </div>
-                    <div id="map" class="map-container" hidden></div>
+                </div>
+                <section class="map-container">
+                    <div id="map" class="map-canvas"></div>
+                    <div class="map-controls" hidden>
+                        <div class="layer-toggle" role="group" aria-label="Toggle base layer">
+                            <button type="button" class="map-button active" data-map-style="streets">Default</button>
+                            <button type="button" class="map-button" data-map-style="satellite">Satellite</button>
+                        </div>
+                    </div>
                 </section>
-            </main>
-        </div>
+            </section>
+        </main>
+    </div>
 
-        <script type="module">
-            import { mountHeader } from "/header.js";
-            mountHeader("daily");
-        </script>
-        <!-- Leaflet JS -->
-        <script
-            src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-            crossorigin=""
-        ></script>
+    <script type="module">
+        import { mountHeader } from "/header.js";
+        mountHeader("daily");
+    </script>
+    <script src="/config.js"></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.17.0-beta.1/mapbox-gl.js" crossorigin="anonymous"></script>
     <script type="module" src="/daily.js"></script>
-    </body>
+</body>
+
 </html>
