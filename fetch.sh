@@ -115,6 +115,10 @@ update_users() {
   fi
 }
 
+aggregate_data() {
+  python3 aggregate-data.py
+}
+
 echo_datetime() {
   echo "local date ($LOCAL_TZ): $(TZ="$LOCAL_TZ" date)"
 }
@@ -179,9 +183,9 @@ show_today() {
 }
 
 case "${1:-both}" in
-	daily)   echo_datetime; fetch_daily; update_index; update_users ;;
-        friends) echo_datetime; fetch_friends; update_index; update_users ;;
-        both)    echo_datetime; fetch_daily; fetch_friends; update_index; update_users ;;
+	daily)   echo_datetime; fetch_daily; update_index; update_users; aggregate_data ;;
+        friends) echo_datetime; fetch_friends; update_index; update_users; aggregate_data ;;
+        both)    echo_datetime; fetch_daily; fetch_friends; update_index; update_users; aggregate_data ;;
         today|status|inspect)
                   show_today ;;
           *)       echo "usage: $0 [daily|friends|both|today|status|inspect]" >&2; exit 2 ;;

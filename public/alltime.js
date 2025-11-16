@@ -1,8 +1,7 @@
 import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7/+esm';
-import { BASE_DATA, $, fetchJSON, normalizeRows, buildColorMap } from './utils.js';
+import { BASE_DATA, $, fetchJSON, buildColorMap } from './utils.js';
 
 const MAX_USERS = 10; // Show top N lines
-const FETCH_CONCURRENCY = 12;
 let CHART_MODE = 'total'; // 'total' | 'mean'
 const ROLLING_MIN = 1;
 const ROLLING_MAX = 31;
@@ -42,28 +41,53 @@ function setStatus(msg, isErr=false) {
   el.className = "status" + (isErr ? " err" : "");
 }
 
-async function loadIndex() {
-  const url = `${BASE_DATA}/index.json`;
-  const data = await fetchJSON(url);
-  const dates = Array.isArray(data) ? data.slice() : (Array.isArray(data.dates) ? data.dates.slice() : []);
-  dates.sort();
-  return dates;
-}
-
-async function fetchDay(date) {
-  const url = `${BASE_DATA}/${date}/leaderboard.json`;
-  try {
-    const data = await fetchJSON(url);
-    return normalizeRows(data);
-  } catch (e) {
-    return [];
-  }
-}
-
 function lightenColor(colorStr) {
   const c = d3.color(colorStr);
   if (!c) return colorStr;
   return c.brighter(0.6).formatRgb();
+}
+
+async function fetchAggregatedReport() {
+  const url = `${BASE_DATA}/alltime.json`;
+  const data = await fetchJSON(url);
+  if (!data || !Array.isArray(data.dates)) {
+    throw new Error('Invalid alltime.json payload');
+  }
+  return normalizeAggregatedReport(data);
+}
+
+function normalizeAggregatedReport(raw = {}) {
+  const dates = Array.isArray(raw.dates) ? raw.dates.slice() : [];
+  dates.sort();
+  const users = Array.isArray(raw.users) ? raw.users.slice() : [];
+  const topUsersRaw = Array.isArray(raw.topUsers) ? raw.topUsers.slice() : [];
+  const colorMap = buildColorMap(users.map((u) => u.username));
+
+  users.forEach((user, idx) => {
+    if (!user.rank) user.rank = idx + 1;
+    user.color = colorMap.get(user.username);
+    if (typeof user.days !== 'number' && user.total && dates.length) {
+      user.days = Math.max(0, Math.min(dates.length, user.rank));
+    }
+  });
+
+  const hydratedTop = [];
+  const maxSeriesUsers = Math.min(MAX_USERS, Math.max(topUsersRaw.length, users.length));
+  const preferred = topUsersRaw.length ? topUsersRaw : users.slice(0, maxSeriesUsers);
+
+  preferred.slice(0, maxSeriesUsers).forEach((entry) => {
+    const clone = { ...entry };
+    clone.color = colorMap.get(clone.username);
+    ensureUserSeries(clone, dates);
+    hydratedTop.push(clone);
+  });
+
+  return {
+    dates,
+    users,
+    topUsers: hydratedTop,
+    generatedAt: raw.generatedAt,
+  };
 }
 
 function formatScore(value, mode = 'total') {
@@ -443,6 +467,28 @@ function hydrateUserSeries(user, dates) {
   user.cumulative = cumulative;
   user.meanSeries = meanSeries;
   user.firstPlayIndex = firstPlayIndex;
+  user.rollingCache = new Map();
+}
+
+function ensureUserSeries(user, dates) {
+  if (!user) return;
+  const hasSeries = Array.isArray(user.dailyScores) && user.dailyScores.length === dates.length;
+  if (hasSeries && Array.isArray(user.cumulative) && Array.isArray(user.meanSeries)) {
+    user.rollingCache = new Map();
+    return;
+  }
+  if (user.perDay instanceof Map || (user.perDay && typeof user.perDay === 'object')) {
+    if (!(user.perDay instanceof Map)) {
+      user.perDay = new Map(Object.entries(user.perDay));
+    }
+    hydrateUserSeries(user, dates);
+    return;
+  }
+  // Fallback to zero-filled arrays to avoid rendering errors.
+  user.dailyScores = new Array(dates.length).fill(null);
+  user.cumulative = new Array(dates.length).fill(0);
+  user.meanSeries = new Array(dates.length).fill(null);
+  user.firstPlayIndex = -1;
   user.rollingCache = new Map();
 }
 
@@ -830,75 +876,11 @@ if (rollingRange) {
 syncRollingInputs(rollingWindow);
 
 async function gatherAllTimeData(onProgress = () => {}) {
-  onProgress('Loading index…');
-  let dates;
-  try {
-    dates = await loadIndex();
-  } catch (e) {
-    throw new Error(`Error loading index.json: ${e.message}`);
-  }
-  if (!dates.length) return { dates: [], users: [], topUsers: [] };
-
-  const byUser = new Map();
-  const totalDays = dates.length;
-  const maxWorkers = Math.min(FETCH_CONCURRENCY, totalDays);
-  onProgress(`Fetching ${totalDays} days with up to ${maxWorkers} parallel requests…`);
-  const results = new Array(totalDays);
-  let completed = 0;
-  let nextIndex = 0;
-  const getNow = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
-  const startAll = getNow();
-
-  async function worker() {
-    while (true) {
-      const current = nextIndex;
-      if (current >= totalDays) break;
-      nextIndex++;
-      const date = dates[current];
-      const started = getNow();
-      let rows;
-      try {
-        rows = await fetchDay(date);
-      } catch (err) {
-        console.error('Error loading day', date, err);
-        rows = [];
-      }
-      results[current] = { date, rows };
-      completed++;
-      const perDay = ((getNow() - started) / 1000).toFixed(1);
-      const elapsed = ((getNow() - startAll) / 1000).toFixed(1);
-      onProgress(`Loaded day ${completed}/${totalDays} (${date}) in ${perDay}s — elapsed ${elapsed}s`);
-    }
-  }
-
-  const workers = Array.from({ length: maxWorkers }, () => worker());
-  await Promise.all(workers);
-  const allRowsByDate = results.filter(Boolean);
-
-  for (const {date, rows} of allRowsByDate) {
-    for (const r of rows) {
-      if (!byUser.has(r.username)) byUser.set(r.username, { username:r.username, total:0, perDay:new Map() });
-      const u = byUser.get(r.username);
-      u.total += r.score;
-      u.perDay.set(date, (u.perDay.get(date) || 0) + r.score);
-    }
-  }
-
-  const users = Array.from(byUser.values());
-  for (const u of users) u.days = u.perDay.size;
-  users.sort((a,b)=> b.total - a.total);
-  let rank = 0, prevTotal = null;
-  users.forEach((u, idx) => {
-    if (u.total !== prevTotal) rank = idx + 1;
-    u.rank = rank;
-    prevTotal = u.total;
-  });
-
-  const colorMap = buildColorMap(users.map(u => u.username));
-  const topUsers = users.slice(0, MAX_USERS).map(u => ({...u, color: colorMap.get(u.username)}));
-  for (const u of topUsers) hydrateUserSeries(u, dates);
-
-  return { dates, users, topUsers };
+  onProgress('Loading aggregated data…');
+  const report = await fetchAggregatedReport();
+  const userCount = report.users?.length || 0;
+  onProgress(`Loaded aggregated data for ${userCount} users`);
+  return report;
 }
 
 function renderFromReport(report, source = 'fresh') {
